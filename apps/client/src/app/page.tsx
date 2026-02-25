@@ -1,5 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+
 import {
   Layout,
   Typography,
@@ -78,6 +81,15 @@ const demoReports = [
 
 export default function HomePage() {
   const { token } = theme.useToken();
+  const [categories, setCategories] = useState<any[]>([]);
+
+  useEffect(() => {
+    supabase.from('categories').select('*').then(({ data, error }: { data: any; error: any}) => {
+      console.log('Categories from Supabase:', data);
+      if (error) console.error('Supabase error:', error);
+      if (data) setCategories(data);
+    });
+  }, []);
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
