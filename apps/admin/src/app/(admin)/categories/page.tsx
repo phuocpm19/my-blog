@@ -11,7 +11,7 @@ import {
   Form,
   message,
   Popconfirm,
-  Tag as AntTag,
+  Tag,
 } from 'antd';
 import {
   PlusOutlined,
@@ -24,11 +24,13 @@ import { supabase } from '@/lib/supabase';
 
 const { Title, Text } = Typography;
 
-interface Tag {
+interface Category {
   id: string;
   name: string;
   slug: string;
+  description: string | null;
   created_at: string;
+  updated_at: string;
   post_count?: number;
 }
 
@@ -61,45 +63,46 @@ function generateSlug(text: string): string {
     .replace(/^-|-$/g, '');
 }
 
-export default function TagsPage() {
-  const [tags, setTags] = useState<Tag[]>([]);
+export default function CategoriesPage() {
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<Tag | null>(null);
+  const [editing, setEditing] = useState<Category | null>(null);
   const [saving, setSaving] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [form] = Form.useForm();
 
-  // ─── Load tags ───
-  const loadTags = useCallback(async () => {
+  // ─── Load categories ───
+  const loadCategories = useCallback(async () => {
     setLoading(true);
+    // Lấy categories + đếm số bài viết
     const { data, error } = await supabase
-      .from('tags')
-      .select('*, post_tags(count)')
+      .from('categories')
+      .select('*, posts(count)')
       .order('created_at', { ascending: false });
 
     if (error) {
-      message.error('Lỗi tải tags: ' + error.message);
+      message.error('Lỗi tải danh mục: ' + error.message);
     } else {
-      const mapped = (data || []).map((tag: any) => ({
-        ...tag,
-        post_count: tag.post_tags?.[0]?.count ?? 0,
+      const mapped = (data || []).map((cat: any) => ({
+        ...cat,
+        post_count: cat.posts?.[0]?.count ?? 0,
       }));
-      setTags(mapped);
+      setCategories(mapped);
     }
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    loadTags();
-  }, [loadTags]);
+    loadCategories();
+  }, [loadCategories]);
 
   // ─── Filter theo search ───
-  const filtered = tags.filter(
-    (tag) =>
-      tag.name.toLowerCase().includes(search.toLowerCase()) ||
-      tag.slug.toLowerCase().includes(search.toLowerCase())
+  const filtered = categories.filter(
+    (cat) =>
+      cat.name.toLowerCase().includes(search.toLowerCase()) ||
+      cat.slug.toLowerCase().includes(search.toLowerCase())
   );
 
   // ─── Mở modal tạo mới ───
@@ -110,24 +113,25 @@ export default function TagsPage() {
   };
 
   // ─── Mở modal chỉnh sửa ───
-  const handleEdit = (record: Tag) => {
+  const handleEdit = (record: Category) => {
     setEditing(record);
     form.setFieldsValue({
       name: record.name,
       slug: record.slug,
+      description: record.description || '',
     });
     setModalOpen(true);
   };
 
-  // ─── Xóa tag ───
+  // ─── Xóa category ───
   const handleDelete = async (id: string) => {
     setActionLoading(id);
-    const { error } = await supabase.from('tags').delete().eq('id', id);
+    const { error } = await supabase.from('categories').delete().eq('id', id);
     if (error) {
       message.error('Lỗi xóa: ' + error.message);
     } else {
-      message.success('Đã xóa tag');
-      await loadTags();
+      message.success('Đã xóa danh mục');
+      await loadCategories();
     }
     setActionLoading(null);
   };
@@ -139,25 +143,36 @@ export default function TagsPage() {
       setSaving(true);
 
       if (editing) {
+        // Update
         const { error } = await supabase
-          .from('tags')
-          .update({ name: values.name, slug: values.slug })
+          .from('categories')
+          .update({
+            name: values.name,
+            slug: values.slug,
+            description: values.description || null,
+          })
           .eq('id', editing.id);
+
         if (error) throw error;
-        message.success('Đã cập nhật tag');
+        message.success('Đã cập nhật danh mục');
       } else {
-        const { error } = await supabase
-          .from('tags')
-          .insert({ name: values.name, slug: values.slug });
+        // Create
+        const { error } = await supabase.from('categories').insert({
+          name: values.name,
+          slug: values.slug,
+          description: values.description || null,
+        });
+
         if (error) throw error;
-        message.success('Đã tạo tag mới');
+        message.success('Đã tạo danh mục mới');
       }
 
       setModalOpen(false);
       form.resetFields();
-      loadTags();
+      loadCategories();
     } catch (err: any) {
       if (err?.message) {
+        // Duplicate slug
         if (err.message.includes('duplicate') || err.message.includes('unique')) {
           message.error('Slug đã tồn tại, vui lòng chọn slug khác');
         } else {
@@ -169,17 +184,19 @@ export default function TagsPage() {
     }
   };
 
-  // ─── Auto-generate slug ───
+  // ─── Auto-generate slug khi nhập name ───
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const name = e.target.value;
+    // Chỉ auto-generate khi tạo mới hoặc user chưa sửa slug thủ công
     if (!editing) {
-      form.setFieldsValue({ slug: generateSlug(e.target.value) });
+      form.setFieldsValue({ slug: generateSlug(name) });
     }
   };
 
   // ─── Table columns ───
-  const columns: ColumnsType<Tag> = [
+  const columns: ColumnsType<Category> = [
     {
-      title: 'Tên tag',
+      title: 'Tên danh mục',
       dataIndex: 'name',
       key: 'name',
       render: (name: string) => <Text strong>{name}</Text>,
@@ -188,7 +205,14 @@ export default function TagsPage() {
       title: 'Slug',
       dataIndex: 'slug',
       key: 'slug',
-      render: (slug: string) => <AntTag color="blue">{slug}</AntTag>,
+      render: (slug: string) => <Tag>{slug}</Tag>,
+    },
+    {
+      title: 'Mô tả',
+      dataIndex: 'description',
+      key: 'description',
+      ellipsis: true,
+      render: (desc: string | null) => desc || <Text type="secondary">—</Text>,
     },
     {
       title: 'Bài viết',
@@ -217,7 +241,7 @@ export default function TagsPage() {
       key: 'actions',
       width: 100,
       align: 'center',
-      render: (_: any, record: Tag) => (
+      render: (_: any, record: Category) => (
         <Space>
           <Button
             type="text"
@@ -227,10 +251,10 @@ export default function TagsPage() {
             disabled={actionLoading === record.id}
           />
           <Popconfirm
-            title="Xóa tag?"
+            title="Xóa danh mục?"
             description={
               record.post_count
-                ? `Tag này đang gắn với ${record.post_count} bài viết.`
+                ? `Danh mục này có ${record.post_count} bài viết. Bài viết sẽ mất category.`
                 : 'Bạn chắc chắn muốn xóa?'
             }
             onConfirm={() => handleDelete(record.id)}
@@ -262,15 +286,15 @@ export default function TagsPage() {
         }}
       >
         <Title level={3} style={{ margin: 0 }}>
-          Tags
+          Danh mục
         </Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-          Thêm tag
+          Thêm danh mục
         </Button>
       </div>
 
       <Input
-        placeholder="Tìm kiếm tag..."
+        placeholder="Tìm kiếm danh mục..."
         prefix={<SearchOutlined />}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -285,14 +309,14 @@ export default function TagsPage() {
         loading={loading}
         pagination={{
           pageSize: 10,
-          showTotal: (total) => `Tổng ${total} tags`,
+          showTotal: (total) => `Tổng ${total} danh mục`,
         }}
-        locale={{ emptyText: 'Chưa có tag nào' }}
+        locale={{ emptyText: 'Chưa có danh mục nào' }}
       />
 
       {/* ─── Modal Tạo / Sửa ─── */}
       <Modal
-        title={editing ? 'Chỉnh sửa tag' : 'Thêm tag mới'}
+        title={editing ? 'Chỉnh sửa danh mục' : 'Thêm danh mục mới'}
         open={modalOpen}
         onCancel={() => {
           setModalOpen(false);
@@ -302,16 +326,16 @@ export default function TagsPage() {
         okText={editing ? 'Cập nhật' : 'Tạo'}
         cancelText="Hủy"
         confirmLoading={saving}
-        destroyOnHidden
+        forceRender
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item
             name="name"
-            label="Tên tag"
-            rules={[{ required: true, message: 'Vui lòng nhập tên tag' }]}
+            label="Tên danh mục"
+            rules={[{ required: true, message: 'Vui lòng nhập tên danh mục' }]}
           >
             <Input
-              placeholder="VD: psychology"
+              placeholder="VD: Sách Tâm Lý"
               onChange={handleNameChange}
               autoFocus
             />
@@ -328,7 +352,11 @@ export default function TagsPage() {
               },
             ]}
           >
-            <Input placeholder="vd: psychology" />
+            <Input placeholder="vd: sach-tam-ly" />
+          </Form.Item>
+
+          <Form.Item name="description" label="Mô tả">
+            <Input.TextArea rows={3} placeholder="Mô tả ngắn về danh mục (không bắt buộc)" />
           </Form.Item>
         </Form>
       </Modal>

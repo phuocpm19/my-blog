@@ -53,16 +53,20 @@ export type TradeSide = 'long' | 'short';
 
 export interface Trade {
   id: string;
+  platform: string | null;
   pair: string;
   side: TradeSide;
   entry_price: number;
   exit_price: number;
+  sl: number | null;
+  tp: number | null;
   quantity: number;
   pnl: number;
   pnl_percent: number;
   fee: number;
   leverage: number;
   strategy: string | null;
+  exit_reason: string | null;
   notes: string | null;
   trade_date: string;
   report_id: string | null;

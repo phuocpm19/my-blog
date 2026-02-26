@@ -25,13 +25,21 @@
 - [2026-02-25] Admin authentication (login/logout) với Supabase Auth
 - [2026-02-25] Admin layout (sidebar, header, route group)
 - [2026-02-25] Admin dashboard với stats từ database
+- [2026-02-25] CRUD Categories (list, search, create, edit, delete + auto slug)
+- [2026-02-26] CRUD Tags (list, search, create, edit, delete + auto slug)
+- [2026-02-26] CRUD Posts (list, search, filter, create, edit, delete + TipTap editor + tags + category)
+- [2026-02-26] CRUD Trading Reports (list, search, filter, create, edit, delete + DatePicker + session)
+- [2026-02-26] CRUD Trades (list, search, filter, create, edit, delete + summary bar + PnL/winrate)
 
 ## Đang làm
-- CRUD Categories cho admin
+- Phase 2 hoàn thành! Chuẩn bị Phase 3 — Client App
 
 ## Bước tiếp theo
-- [ ] CRUD Categories (list, create, edit, delete)
-- [ ] CRUD Tags
+- [x] ~~CRUD Trades~~
+- [x] ~~CRUD Trading Reports~~
+- [x] ~~CRUD Posts (với rich text editor)~~
+- [x] ~~CRUD Tags~~
+- [x] ~~CRUD Categories (list, create, edit, delete)~~
 - [ ] CRUD Posts (với rich text editor)
 - [ ] CRUD Trading Reports
 - [ ] CRUD Trades
@@ -55,6 +63,23 @@ app/
   (admin)/
     layout.tsx        ← Sidebar + Header layout
     page.tsx          ← Dashboard
+    categories/page.tsx ← CRUD Categories
+    tags/page.tsx       ← CRUD Tags
+    posts/
+      page.tsx          ← Posts list
+      new/page.tsx      ← Tạo bài mới
+      [id]/edit/page.tsx ← Chỉnh sửa bài
+      _components/
+        RichEditor.tsx  ← TipTap rich text editor
+        PostForm.tsx    ← Shared form (create/edit)
+    trading-reports/
+      page.tsx          ← Reports list
+      new/page.tsx      ← Tạo report mới
+      [id]/edit/page.tsx ← Chỉnh sửa report
+      _components/
+        ReportForm.tsx  ← Shared form (create/edit)
+    trades/
+      page.tsx          ← CRUD Trades (modal-based)
 lib/
   supabase.ts         ← Supabase client
   auth-context.tsx    ← Auth context provider

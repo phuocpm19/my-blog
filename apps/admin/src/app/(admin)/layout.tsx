@@ -16,6 +16,7 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '@/lib/auth-context';
+import RouteProgress from './_components/RouteProgress';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -61,6 +62,7 @@ export default function AdminLayout({
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
+      <RouteProgress />
       <Sider
         collapsible
         collapsed={collapsed}

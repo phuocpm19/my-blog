@@ -68,7 +68,6 @@ export default function TagsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Tag | null>(null);
   const [saving, setSaving] = useState(false);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [form] = Form.useForm();
 
   // ─── Load tags ───
@@ -121,15 +120,13 @@ export default function TagsPage() {
 
   // ─── Xóa tag ───
   const handleDelete = async (id: string) => {
-    setActionLoading(id);
     const { error } = await supabase.from('tags').delete().eq('id', id);
     if (error) {
       message.error('Lỗi xóa: ' + error.message);
     } else {
       message.success('Đã xóa tag');
-      await loadTags();
+      loadTags();
     }
-    setActionLoading(null);
   };
 
   // ─── Submit form (tạo / sửa) ───
@@ -224,7 +221,6 @@ export default function TagsPage() {
             size="small"
             icon={<EditOutlined />}
             onClick={() => handleEdit(record)}
-            disabled={actionLoading === record.id}
           />
           <Popconfirm
             title="Xóa tag?"
@@ -238,13 +234,7 @@ export default function TagsPage() {
             cancelText="Hủy"
             okButtonProps={{ danger: true }}
           >
-            <Button
-              type="text"
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              loading={actionLoading === record.id}
-            />
+            <Button type="text" size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
       ),
@@ -302,7 +292,7 @@ export default function TagsPage() {
         okText={editing ? 'Cập nhật' : 'Tạo'}
         cancelText="Hủy"
         confirmLoading={saving}
-        destroyOnHidden
+        forceRender
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item
