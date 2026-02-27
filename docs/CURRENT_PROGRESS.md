@@ -39,35 +39,57 @@
 - [2026-02-27] Trading Reports listing (/trading-reports) — search, session filter, pagination
 - [2026-02-27] Trading Report detail (/trading-reports/[id]) — content, trades table, PnL summary
 
+### Phase 4 — Polish & Deploy (in progress)
+- [2026-02-27] SEO metadata — root layout (OG, Twitter, title template), per-page static metadata, dynamic generateMetadata cho post/report detail
+- [2026-02-27] Global Search — SearchModal (Ctrl+K), debounced search across posts + trading reports, keyboard navigation
+- [2026-02-27] Trading Dashboard — time range filter, stats (PnL, win rate, profit factor), cumulative PnL chart, pair breakdown, long/short performance
+- [2026-02-27] Content styles — .post-content CSS (headings, code, blockquote, table, images)
+- [2026-02-27] Refactored all pages: server component (metadata) + client component (interactive) pattern
+
 ## Đang làm
-- Phase 4 — Polish & Deploy
+- Phase 4 — Polish & Deploy (finishing up)
 
 ## Bước tiếp theo
-- [ ] SEO metadata (per-page titles, descriptions, Open Graph)
-- [ ] Global search
-- [ ] Trading Dashboard (tổng hợp PnL, win rate, charts)
-- [ ] Content styles (post HTML rendering)
 - [ ] Deploy lên Vercel + test production
+- [ ] (Optional) Thêm Open Graph images
+- [ ] (Optional) Sitemap.xml + robots.txt
 
 ## Cấu trúc hiện tại
 
 ### Client (apps/client/src/)
 ```
 app/
-  layout.tsx                ← Root layout + AntdRegistry + ClientLayout
-  page.tsx                  ← Homepage (real data từ Supabase)
+  layout.tsx                ← Root layout + AntdRegistry + ClientLayout + SEO metadata
+  page.tsx                  ← Homepage (server → _components/HomePage.tsx)
+  _components/
+    HomePage.tsx            ← Homepage client component
   posts/
-    page.tsx                ← Blog listing (search, filter, pagination)
-    [slug]/page.tsx         ← Blog detail (content, tags, related)
+    page.tsx                ← Blog listing (server + metadata)
+    _components/
+      PostsClient.tsx       ← Posts list client component
+    [slug]/
+      page.tsx              ← Blog detail (server + generateMetadata)
+      _components/
+        PostDetailClient.tsx ← Post detail client component
   trading-reports/
-    page.tsx                ← Reports listing (search, session filter)
-    [id]/page.tsx           ← Report detail (content, trades, PnL)
+    page.tsx                ← Reports listing (server + metadata)
+    _components/
+      ReportsClient.tsx     ← Reports list client component
+    [id]/
+      page.tsx              ← Report detail (server + generateMetadata)
+      _components/
+        ReportDetailClient.tsx ← Report detail client component
+  trading-dashboard/
+    page.tsx                ← Dashboard (server + metadata)
+    _components/
+      DashboardClient.tsx   ← Dashboard client component
 components/
-  Navbar.tsx                ← Responsive navbar + mobile drawer
+  Navbar.tsx                ← Responsive navbar + search button + Ctrl+K
   Footer.tsx                ← Footer với links
   ClientLayout.tsx          ← Layout wrapper (Navbar + Content + Footer)
+  SearchModal.tsx           ← Global search modal (posts + reports)
 lib/
-  supabase.ts               ← Supabase client
+  supabase.ts               ← Supabase client (lazy init)
 ```
 
 ### Admin (apps/admin/src/)

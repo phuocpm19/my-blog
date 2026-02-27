@@ -1,19 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Layout, Menu, Button, Drawer, Grid, Typography } from 'antd';
+import { Layout, Menu, Button, Drawer, Grid, Typography, Space, Tooltip } from 'antd';
 import {
   HomeOutlined,
   ReadOutlined,
   LineChartOutlined,
   FundOutlined,
   MenuOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
+import SearchModal from './SearchModal';
 
 const { Header } = Layout;
 const { useBreakpoint } = Grid;
+const { Text } = Typography;
 
 const navItems = [
   { key: '/', icon: <HomeOutlined />, label: <Link href="/">Trang chủ</Link> },
@@ -34,9 +37,22 @@ export default function Navbar() {
   const pathname = usePathname();
   const screens = useBreakpoint();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   // Determine active key from pathname
   const selectedKey = pathname === '/' ? '/' : `/${pathname.split('/')[1]}`;
+
+  // Global Ctrl+K / Cmd+K shortcut
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   return (
     <>
@@ -71,6 +87,36 @@ export default function Navbar() {
           <div style={{ flex: 1 }} />
         )}
 
+        {/* Search button */}
+        <Tooltip title={screens.md ? 'Tìm kiếm (Ctrl+K)' : 'Tìm kiếm'}>
+          <Button
+            type="text"
+            icon={<SearchOutlined style={{ fontSize: 18 }} />}
+            onClick={() => setSearchOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginRight: screens.md ? 0 : 8,
+            }}
+          >
+            {screens.md && (
+              <Text
+                type="secondary"
+                style={{
+                  fontSize: 12,
+                  border: '1px solid #d9d9d9',
+                  borderRadius: 4,
+                  padding: '0 6px',
+                  lineHeight: '20px',
+                }}
+              >
+                Ctrl+K
+              </Text>
+            )}
+          </Button>
+        </Tooltip>
+
         {!screens.md && (
           <Button
             type="text"
@@ -96,6 +142,9 @@ export default function Navbar() {
           onClick={() => setDrawerOpen(false)}
         />
       </Drawer>
+
+      {/* Search Modal */}
+      <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
     </>
   );
 }
