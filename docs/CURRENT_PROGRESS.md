@@ -4,8 +4,8 @@
 > Gửi file này cho Claude khi bắt đầu chat mới.
 
 ## Trạng thái hiện tại
-**Phase:** 4 — Polish & Deploy
-**Đang làm:** SEO, global search, Trading Dashboard, deploy Vercel
+**Phase:** 4 — Polish & Deploy ✅ HOÀN TẤT
+**Trạng thái:** Project hoàn thành, deployed on Vercel
 
 ## Đã hoàn thành
 
@@ -39,20 +39,27 @@
 - [2026-02-27] Trading Reports listing (/trading-reports) — search, session filter, pagination
 - [2026-02-27] Trading Report detail (/trading-reports/[id]) — content, trades table, PnL summary
 
-### Phase 4 — Polish & Deploy (in progress)
+### Phase 4 — Polish & Deploy ✅
 - [2026-02-27] SEO metadata — root layout (OG, Twitter, title template), per-page static metadata, dynamic generateMetadata cho post/report detail
 - [2026-02-27] Global Search — SearchModal (Ctrl+K), debounced search across posts + trading reports, keyboard navigation
 - [2026-02-27] Trading Dashboard — time range filter, stats (PnL, win rate, profit factor), cumulative PnL chart, pair breakdown, long/short performance
 - [2026-02-27] Content styles — .post-content CSS (headings, code, blockquote, table, images)
 - [2026-02-27] Refactored all pages: server component (metadata) + client component (interactive) pattern
+- [2026-02-27] Sitemap.xml (dynamic, fetch posts + reports từ Supabase) + robots.txt
+- [2026-02-27] Supabase client lazy init (fix build crash khi thiếu env vars)
+- [2026-02-27] Deploy lên Vercel — cả client + admin build thành công
 
 ## Đang làm
-- Phase 4 — Polish & Deploy (finishing up)
+- (Không có — project hoàn tất)
 
-## Bước tiếp theo
-- [ ] Deploy lên Vercel + test production
-- [ ] (Optional) Thêm Open Graph images
-- [ ] (Optional) Sitemap.xml + robots.txt
+## Bước tiếp theo (nếu muốn mở rộng)
+- [ ] Open Graph images (auto-generated per post)
+- [ ] RSS feed
+- [ ] Dark mode
+- [ ] Comments system (Giscus hoặc Supabase-based)
+- [ ] Reading time estimate
+- [ ] Table of contents cho bài viết dài
+- [ ] Analytics (Vercel Analytics hoặc Umami)
 
 ## Cấu trúc hiện tại
 
@@ -61,6 +68,8 @@
 app/
   layout.tsx                ← Root layout + AntdRegistry + ClientLayout + SEO metadata
   page.tsx                  ← Homepage (server → _components/HomePage.tsx)
+  sitemap.ts                ← Dynamic sitemap (fetches posts + reports from Supabase)
+  robots.ts                 ← robots.txt configuration
   _components/
     HomePage.tsx            ← Homepage client component
   posts/
