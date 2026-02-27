@@ -1,337 +1,231 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Typography, Card, Row, Col, Statistic, Table, Tag, Space, Skeleton, theme } from 'antd';
 import {
-  Typography,
-  Table,
-  Button,
-  Space,
-  Input,
-  Modal,
-  Form,
-  message,
-  Popconfirm,
-  Tag as AntTag,
-} from 'antd';
-import {
-  PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  SearchOutlined,
+  AppstoreOutlined,
+  TagsOutlined,
+  FileTextOutlined,
+  LineChartOutlined,
+  SwapOutlined,
+  RiseOutlined,
+  FallOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
 import { supabase } from '@/lib/supabase';
 
 const { Title, Text } = Typography;
 
-interface Tag {
-  id: string;
-  name: string;
-  slug: string;
-  created_at: string;
-  post_count?: number;
+interface DashboardStats {
+  categories: number;
+  tags: number;
+  posts: number;
+  publishedPosts: number;
+  reports: number;
+  trades: number;
 }
 
-// Hàm tạo slug từ tiếng Việt
-function generateSlug(text: string): string {
-  const vietnameseMap: Record<string, string> = {
-    à: 'a', á: 'a', ả: 'a', ã: 'a', ạ: 'a',
-    ă: 'a', ắ: 'a', ằ: 'a', ẳ: 'a', ẵ: 'a', ặ: 'a',
-    â: 'a', ấ: 'a', ầ: 'a', ẩ: 'a', ẫ: 'a', ậ: 'a',
-    đ: 'd',
-    è: 'e', é: 'e', ẻ: 'e', ẽ: 'e', ẹ: 'e',
-    ê: 'e', ế: 'e', ề: 'e', ể: 'e', ễ: 'e', ệ: 'e',
-    ì: 'i', í: 'i', ỉ: 'i', ĩ: 'i', ị: 'i',
-    ò: 'o', ó: 'o', ỏ: 'o', õ: 'o', ọ: 'o',
-    ô: 'o', ố: 'o', ồ: 'o', ổ: 'o', ỗ: 'o', ộ: 'o',
-    ơ: 'o', ớ: 'o', ờ: 'o', ở: 'o', ỡ: 'o', ợ: 'o',
-    ù: 'u', ú: 'u', ủ: 'u', ũ: 'u', ụ: 'u',
-    ư: 'u', ứ: 'u', ừ: 'u', ử: 'u', ữ: 'u', ự: 'u',
-    ỳ: 'y', ý: 'y', ỷ: 'y', ỹ: 'y', ỵ: 'y',
-  };
-
-  return text
-    .toLowerCase()
-    .split('')
-    .map((char) => vietnameseMap[char] || char)
-    .join('')
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-}
-
-export default function TagsPage() {
-  const [tags, setTags] = useState<Tag[]>([]);
+export default function DashboardPage() {
+  const { token } = theme.useToken();
+  const router = useRouter();
+  const [stats, setStats] = useState<DashboardStats>({
+    categories: 0,
+    tags: 0,
+    posts: 0,
+    publishedPosts: 0,
+    reports: 0,
+    trades: 0,
+  });
+  const [recentPosts, setRecentPosts] = useState<any[]>([]);
+  const [recentTrades, setRecentTrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<Tag | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [form] = Form.useForm();
-
-  // ─── Load tags ───
-  const loadTags = useCallback(async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('tags')
-      .select('*, post_tags(count)')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      message.error('Lỗi tải tags: ' + error.message);
-    } else {
-      const mapped = (data || []).map((tag: any) => ({
-        ...tag,
-        post_count: tag.post_tags?.[0]?.count ?? 0,
-      }));
-      setTags(mapped);
-    }
-    setLoading(false);
-  }, []);
 
   useEffect(() => {
-    loadTags();
-  }, [loadTags]);
+    async function loadDashboard() {
+      setLoading(true);
 
-  // ─── Filter theo search ───
-  const filtered = tags.filter(
-    (tag) =>
-      tag.name.toLowerCase().includes(search.toLowerCase()) ||
-      tag.slug.toLowerCase().includes(search.toLowerCase())
-  );
+      const [catCount, tagCount, postCount, pubPostCount, reportCount, tradeCount, posts, trades] =
+        await Promise.all([
+          supabase.from('categories').select('*', { count: 'exact', head: true }),
+          supabase.from('tags').select('*', { count: 'exact', head: true }),
+          supabase.from('posts').select('*', { count: 'exact', head: true }),
+          supabase.from('posts').select('*', { count: 'exact', head: true }).eq('status', 'published'),
+          supabase.from('trading_reports').select('*', { count: 'exact', head: true }),
+          supabase.from('trades').select('*', { count: 'exact', head: true }),
+          supabase
+            .from('posts')
+            .select('id, title, status, created_at, category:categories(name)')
+            .order('created_at', { ascending: false })
+            .limit(5),
+          supabase
+            .from('trades')
+            .select('id, pair, side, pnl, pnl_percent, trade_date')
+            .order('trade_date', { ascending: false })
+            .limit(5),
+        ]);
 
-  // ─── Mở modal tạo mới ───
-  const handleCreate = () => {
-    setEditing(null);
-    form.resetFields();
-    setModalOpen(true);
-  };
+      setStats({
+        categories: catCount.count ?? 0,
+        tags: tagCount.count ?? 0,
+        posts: postCount.count ?? 0,
+        publishedPosts: pubPostCount.count ?? 0,
+        reports: reportCount.count ?? 0,
+        trades: tradeCount.count ?? 0,
+      });
 
-  // ─── Mở modal chỉnh sửa ───
-  const handleEdit = (record: Tag) => {
-    setEditing(record);
-    form.setFieldsValue({
-      name: record.name,
-      slug: record.slug,
-    });
-    setModalOpen(true);
-  };
+      if (posts.data) setRecentPosts(posts.data);
+      if (trades.data) setRecentTrades(trades.data);
 
-  // ─── Xóa tag ───
-  const handleDelete = async (id: string) => {
-    setActionLoading(id);
-    const { error } = await supabase.from('tags').delete().eq('id', id);
-    if (error) {
-      message.error('Lỗi xóa: ' + error.message);
-    } else {
-      message.success('Đã xóa tag');
-      await loadTags();
+      setLoading(false);
     }
-    setActionLoading(null);
-  };
 
-  // ─── Submit form (tạo / sửa) ───
-  const handleSubmit = async () => {
-    try {
-      const values = await form.validateFields();
-      setSaving(true);
+    loadDashboard();
+  }, []);
 
-      if (editing) {
-        const { error } = await supabase
-          .from('tags')
-          .update({ name: values.name, slug: values.slug })
-          .eq('id', editing.id);
-        if (error) throw error;
-        message.success('Đã cập nhật tag');
-      } else {
-        const { error } = await supabase
-          .from('tags')
-          .insert({ name: values.name, slug: values.slug });
-        if (error) throw error;
-        message.success('Đã tạo tag mới');
-      }
+  const statCards = [
+    { title: 'Categories', value: stats.categories, icon: <AppstoreOutlined />, color: '#1677ff', link: '/categories' },
+    { title: 'Tags', value: stats.tags, icon: <TagsOutlined />, color: '#722ed1', link: '/tags' },
+    { title: 'Bài viết', value: stats.posts, icon: <FileTextOutlined />, color: '#52c41a', link: '/posts', suffix: `(${stats.publishedPosts} published)` },
+    { title: 'Trading Reports', value: stats.reports, icon: <LineChartOutlined />, color: '#fa8c16', link: '/trading-reports' },
+    { title: 'Giao dịch', value: stats.trades, icon: <SwapOutlined />, color: '#eb2f96', link: '/trades' },
+  ];
 
-      setModalOpen(false);
-      form.resetFields();
-      loadTags();
-    } catch (err: any) {
-      if (err?.message) {
-        if (err.message.includes('duplicate') || err.message.includes('unique')) {
-          message.error('Slug đã tồn tại, vui lòng chọn slug khác');
-        } else {
-          message.error('Lỗi: ' + err.message);
-        }
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // ─── Auto-generate slug ───
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!editing) {
-      form.setFieldsValue({ slug: generateSlug(e.target.value) });
-    }
-  };
-
-  // ─── Table columns ───
-  const columns: ColumnsType<Tag> = [
+  const postColumns = [
     {
-      title: 'Tên tag',
-      dataIndex: 'name',
-      key: 'name',
-      render: (name: string) => <Text strong>{name}</Text>,
+      title: 'Tiêu đề',
+      dataIndex: 'title',
+      key: 'title',
+      render: (title: string) => <Text strong>{title}</Text>,
     },
     {
-      title: 'Slug',
-      dataIndex: 'slug',
-      key: 'slug',
-      render: (slug: string) => <AntTag color="blue">{slug}</AntTag>,
+      title: 'Category',
+      dataIndex: 'category',
+      key: 'category',
+      width: 140,
+      render: (cat: any) => cat?.name || '—',
     },
     {
-      title: 'Bài viết',
-      dataIndex: 'post_count',
-      key: 'post_count',
+      title: 'Trạng thái',
+      dataIndex: 'status',
+      key: 'status',
       width: 100,
-      align: 'center',
-      render: (count: number) => count,
+      render: (status: string) => (
+        <Tag color={status === 'published' ? 'green' : 'default'}>{status}</Tag>
+      ),
     },
     {
       title: 'Ngày tạo',
       dataIndex: 'created_at',
       key: 'created_at',
-      width: 160,
-      render: (date: string) =>
-        new Date(date).toLocaleDateString('vi-VN', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
+      width: 140,
+      render: (date: string) => new Date(date).toLocaleDateString('vi-VN'),
+    },
+  ];
+
+  const tradeColumns = [
+    {
+      title: 'Pair',
+      dataIndex: 'pair',
+      key: 'pair',
+      render: (pair: string) => <Text strong>{pair}</Text>,
     },
     {
-      title: '',
-      key: 'actions',
-      width: 100,
-      align: 'center',
-      render: (_: any, record: Tag) => (
-        <Space>
-          <Button
-            type="text"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-            disabled={actionLoading === record.id}
-          />
-          <Popconfirm
-            title="Xóa tag?"
-            description={
-              record.post_count
-                ? `Tag này đang gắn với ${record.post_count} bài viết.`
-                : 'Bạn chắc chắn muốn xóa?'
-            }
-            onConfirm={() => handleDelete(record.id)}
-            okText="Xóa"
-            cancelText="Hủy"
-            okButtonProps={{ danger: true }}
-          >
-            <Button
-              type="text"
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              loading={actionLoading === record.id}
-            />
-          </Popconfirm>
-        </Space>
+      title: 'Side',
+      dataIndex: 'side',
+      key: 'side',
+      width: 80,
+      render: (side: string) => (
+        <Tag color={side === 'long' ? 'green' : 'red'}>
+          {side === 'long' ? <RiseOutlined /> : <FallOutlined />} {side.toUpperCase()}
+        </Tag>
       ),
+    },
+    {
+      title: 'PnL',
+      dataIndex: 'pnl',
+      key: 'pnl',
+      width: 120,
+      render: (pnl: number) => (
+        <Text strong style={{ color: pnl >= 0 ? token.colorSuccess : token.colorError }}>
+          {pnl >= 0 ? '+' : ''}{pnl?.toFixed(2)}
+        </Text>
+      ),
+    },
+    {
+      title: 'Ngày',
+      dataIndex: 'trade_date',
+      key: 'trade_date',
+      width: 120,
+      render: (date: string) => new Date(date).toLocaleDateString('vi-VN'),
     },
   ];
 
   return (
     <>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 24,
-        }}
-      >
-        <Title level={3} style={{ margin: 0 }}>
-          Tags
-        </Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
-          Thêm tag
-        </Button>
-      </div>
+      <Title level={3} style={{ marginBottom: 24 }}>Dashboard</Title>
 
-      <Input
-        placeholder="Tìm kiếm tag..."
-        prefix={<SearchOutlined />}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        allowClear
-        style={{ marginBottom: 16, maxWidth: 360 }}
-      />
+      {/* Stats Cards */}
+      {loading ? (
+        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Col xs={24} sm={12} md={8} lg={4} key={i}>
+              <Card><Skeleton active paragraph={{ rows: 1 }} /></Card>
+            </Col>
+          ))}
+        </Row>
+      ) : (
+        <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+          {statCards.map((card) => (
+            <Col xs={24} sm={12} md={8} lg={4} key={card.title}>
+              <Card
+                hoverable
+                onClick={() => router.push(card.link)}
+                style={{ cursor: 'pointer' }}
+              >
+                <Statistic
+                  title={card.title}
+                  value={card.value}
+                  prefix={<span style={{ color: card.color }}>{card.icon}</span>}
+                />
+                {card.suffix && (
+                  <Text type="secondary" style={{ fontSize: 12 }}>{card.suffix}</Text>
+                )}
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      )}
 
-      <Table
-        columns={columns}
-        dataSource={filtered}
-        rowKey="id"
-        loading={loading}
-        pagination={{
-          pageSize: 10,
-          showTotal: (total) => `Tổng ${total} tags`,
-        }}
-        locale={{ emptyText: 'Chưa có tag nào' }}
-      />
-
-      {/* ─── Modal Tạo / Sửa ─── */}
-      <Modal
-        title={editing ? 'Chỉnh sửa tag' : 'Thêm tag mới'}
-        open={modalOpen}
-        onCancel={() => {
-          setModalOpen(false);
-          form.resetFields();
-        }}
-        onOk={handleSubmit}
-        okText={editing ? 'Cập nhật' : 'Tạo'}
-        cancelText="Hủy"
-        confirmLoading={saving}
-        destroyOnHidden
-      >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item
-            name="name"
-            label="Tên tag"
-            rules={[{ required: true, message: 'Vui lòng nhập tên tag' }]}
-          >
-            <Input
-              placeholder="VD: psychology"
-              onChange={handleNameChange}
-              autoFocus
+      {/* Recent Data */}
+      <Row gutter={[16, 16]}>
+        <Col xs={24} lg={14}>
+          <Card title="Bài viết gần đây" size="small">
+            <Table
+              dataSource={recentPosts}
+              columns={postColumns}
+              rowKey="id"
+              loading={loading}
+              pagination={false}
+              size="small"
+              locale={{ emptyText: 'Chưa có bài viết' }}
             />
-          </Form.Item>
-
-          <Form.Item
-            name="slug"
-            label="Slug"
-            rules={[
-              { required: true, message: 'Vui lòng nhập slug' },
-              {
-                pattern: /^[a-z0-9]+(-[a-z0-9]+)*$/,
-                message: 'Slug chỉ chứa chữ thường, số và dấu gạch ngang',
-              },
-            ]}
-          >
-            <Input placeholder="vd: psychology" />
-          </Form.Item>
-        </Form>
-      </Modal>
+          </Card>
+        </Col>
+        <Col xs={24} lg={10}>
+          <Card title="Giao dịch gần đây" size="small">
+            <Table
+              dataSource={recentTrades}
+              columns={tradeColumns}
+              rowKey="id"
+              loading={loading}
+              pagination={false}
+              size="small"
+              locale={{ emptyText: 'Chưa có giao dịch' }}
+            />
+          </Card>
+        </Col>
+      </Row>
     </>
   );
 }

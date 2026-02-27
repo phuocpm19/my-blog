@@ -1,233 +1,309 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import type { Post, TradingReport } from 'shared';
 
 import {
-  Layout,
   Typography,
   Card,
   Row,
   Col,
   Tag,
   Space,
-  Input,
-  Menu,
+  Skeleton,
+  Empty,
+  Button,
   theme,
 } from 'antd';
 import {
   BookOutlined,
   LineChartOutlined,
   BarChartOutlined,
-  SearchOutlined,
-  HomeOutlined,
   ReadOutlined,
-  FundOutlined,
+  ArrowRightOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons';
 
-const { Header, Content, Footer } = Layout;
 const { Title, Paragraph, Text } = Typography;
-const { Search } = Input;
 
-const menuItems = [
-  { key: 'home', icon: <HomeOutlined />, label: 'Trang chủ' },
-  { key: 'posts', icon: <ReadOutlined />, label: 'Bài viết' },
-  { key: 'trading-reports', icon: <LineChartOutlined />, label: 'Trading Reports' },
-  { key: 'trading-dashboard', icon: <FundOutlined />, label: 'Trading Dashboard' },
+// Color palette for categories
+const categoryColors = [
+  'blue', 'green', 'orange', 'purple', 'cyan', 'magenta', 'gold', 'lime',
 ];
 
-const demoPosts = [
-  {
-    id: 1,
-    title: 'Review: Atomic Habits — Thay đổi tí hon, hiệu quả bất ngờ',
-    category: 'Sách Kỹ Năng',
-    author: 'James Clear',
-    excerpt:
-      'Cuốn sách giúp bạn hiểu rõ cơ chế hình thành thói quen và cách xây dựng hệ thống thay đổi bền vững...',
-    color: 'blue',
-  },
-  {
-    id: 2,
-    title: 'Trading Psychology: Tâm lý khi cầm lệnh ngược trend',
-    category: 'Trading',
-    author: '',
-    excerpt:
-      'Phân tích các sai lầm tâm lý phổ biến khi trader cố gắng bắt đáy hoặc giữ lệnh lỗ quá lâu...',
-    color: 'red',
-  },
-  {
-    id: 3,
-    title: 'Review: Thinking, Fast and Slow — Hai hệ thống tư duy',
-    category: 'Sách Tâm Lý',
-    author: 'Daniel Kahneman',
-    excerpt:
-      'Cách não bộ đưa ra quyết định và tại sao chúng ta thường sai lầm trong phán đoán...',
-    color: 'green',
-  },
-];
+function getCategoryColor(index: number) {
+  return categoryColors[index % categoryColors.length];
+}
 
-const demoReports = [
-  {
-    date: '2026-02-25',
-    session: 'SS1',
-    summary: 'BTC sideway quanh 96k, chờ breakout. ETH yếu hơn kỳ vọng.',
-  },
-  {
-    date: '2026-02-24',
-    session: 'SS3',
-    summary: 'BTC test lại vùng hỗ trợ 94.5k, phản ứng tốt. Đã vào lệnh Long.',
-  },
-];
+const sessionColors: Record<string, string> = {
+  SS1: 'blue',
+  SS2: 'cyan',
+  SS3: 'green',
+  SS4: 'orange',
+  SS5: 'volcano',
+  SS6: 'purple',
+};
+
+interface Stats {
+  posts: number;
+  reports: number;
+  trades: number;
+}
 
 export default function HomePage() {
   const { token } = theme.useToken();
-  const [categories, setCategories] = useState<any[]>([]);
+  const [posts, setPosts] = useState<(Post & { category: { name: string } | null })[]>([]);
+  const [reports, setReports] = useState<TradingReport[]>([]);
+  const [stats, setStats] = useState<Stats>({ posts: 0, reports: 0, trades: 0 });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.from('categories').select('*').then(({ data, error }: { data: any; error: any}) => {
-      console.log('Categories from Supabase:', data);
-      if (error) console.error('Supabase error:', error);
-      if (data) setCategories(data);
-    });
+    async function fetchData() {
+      setLoading(true);
+
+      // Fetch all in parallel
+      const [postsRes, reportsRes, postCount, reportCount, tradeCount] =
+        await Promise.all([
+          // Recent published posts (limit 6)
+          supabase
+            .from('posts')
+            .select('*, category:categories(name)')
+            .eq('status', 'published')
+            .order('published_at', { ascending: false })
+            .limit(6),
+          // Recent published reports (limit 4)
+          supabase
+            .from('trading_reports')
+            .select('*')
+            .eq('status', 'published')
+            .order('report_date', { ascending: false })
+            .limit(4),
+          // Counts
+          supabase
+            .from('posts')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'published'),
+          supabase
+            .from('trading_reports')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'published'),
+          supabase
+            .from('trades')
+            .select('*', { count: 'exact', head: true }),
+        ]);
+
+      if (postsRes.data) setPosts(postsRes.data);
+      if (reportsRes.data) setReports(reportsRes.data);
+      setStats({
+        posts: postCount.count ?? 0,
+        reports: reportCount.count ?? 0,
+        trades: tradeCount.count ?? 0,
+      });
+
+      setLoading(false);
+    }
+
+    fetchData();
   }, []);
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Header
+    <>
+      {/* Hero Section */}
+      <div style={{ textAlign: 'center', marginBottom: 48, paddingTop: 16 }}>
+        <Title level={1} style={{ marginBottom: 8 }}>
+          Reviews, Trading & Knowledge
+        </Title>
+        <Paragraph
+          style={{ fontSize: 16, color: token.colorTextSecondary, maxWidth: 600, margin: '0 auto' }}
+        >
+          Chia sẻ kiến thức từ sách, tài liệu và hành trình giao dịch crypto cá nhân.
+        </Paragraph>
+      </div>
+
+      {/* Stats Overview */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 48 }}>
+        <Col xs={24} sm={8}>
+          <Card>
+            <Space>
+              <BookOutlined style={{ fontSize: 28, color: token.colorPrimary }} />
+              <div>
+                <Text type="secondary">Bài viết</Text>
+                <Title level={3} style={{ margin: 0 }}>
+                  {loading ? '—' : stats.posts}
+                </Title>
+              </div>
+            </Space>
+          </Card>
+        </Col>
+        <Col xs={24} sm={8}>
+          <Card>
+            <Space>
+              <LineChartOutlined style={{ fontSize: 28, color: '#52c41a' }} />
+              <div>
+                <Text type="secondary">Trading Reports</Text>
+                <Title level={3} style={{ margin: 0 }}>
+                  {loading ? '—' : stats.reports}
+                </Title>
+              </div>
+            </Space>
+          </Card>
+        </Col>
+        <Col xs={24} sm={8}>
+          <Card>
+            <Space>
+              <BarChartOutlined style={{ fontSize: 28, color: '#fa8c16' }} />
+              <div>
+                <Text type="secondary">Giao dịch</Text>
+                <Title level={3} style={{ margin: 0 }}>
+                  {loading ? '—' : stats.trades}
+                </Title>
+              </div>
+            </Space>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Recent Posts */}
+      <div
         style={{
           display: 'flex',
+          justifyContent: 'space-between',
           alignItems: 'center',
-          background: token.colorBgContainer,
-          borderBottom: `1px solid ${token.colorBorderSecondary}`,
-          padding: '0 24px',
+          marginBottom: 16,
         }}
       >
-        <Title level={4} style={{ margin: '0 24px 0 0', whiteSpace: 'nowrap' }}>
-          📝 My Blog
-        </Title>
-        <Menu
-          mode="horizontal"
-          defaultSelectedKeys={['home']}
-          items={menuItems}
-          style={{ flex: 1, border: 'none' }}
-        />
-        <Search
-          placeholder="Tìm kiếm bài viết..."
-          prefix={<SearchOutlined />}
-          style={{ maxWidth: 280 }}
-        />
-      </Header>
-
-      <Content style={{ padding: '32px 48px', maxWidth: 1200, margin: '0 auto', width: '100%' }}>
-        {/* Hero Section */}
-        <div style={{ textAlign: 'center', marginBottom: 48 }}>
-          <Title level={1}>Reviews, Trading & Knowledge</Title>
-          <Paragraph style={{ fontSize: 16, color: token.colorTextSecondary }}>
-            Chia sẻ kiến thức từ sách, tài liệu và hành trình giao dịch crypto cá nhân.
-          </Paragraph>
-        </div>
-
-        {/* Stats Overview */}
-        <Row gutter={[16, 16]} style={{ marginBottom: 48 }}>
-          <Col xs={24} sm={8}>
-            <Card>
-              <Space>
-                <BookOutlined style={{ fontSize: 28, color: token.colorPrimary }} />
-                <div>
-                  <Text type="secondary">Bài viết</Text>
-                  <Title level={3} style={{ margin: 0 }}>
-                    24
-                  </Title>
-                </div>
-              </Space>
-            </Card>
-          </Col>
-          <Col xs={24} sm={8}>
-            <Card>
-              <Space>
-                <LineChartOutlined style={{ fontSize: 28, color: '#52c41a' }} />
-                <div>
-                  <Text type="secondary">Trading Reports</Text>
-                  <Title level={3} style={{ margin: 0 }}>
-                    156
-                  </Title>
-                </div>
-              </Space>
-            </Card>
-          </Col>
-          <Col xs={24} sm={8}>
-            <Card>
-              <Space>
-                <BarChartOutlined style={{ fontSize: 28, color: '#fa8c16' }} />
-                <div>
-                  <Text type="secondary">Giao dịch</Text>
-                  <Title level={3} style={{ margin: 0 }}>
-                    432
-                  </Title>
-                </div>
-              </Space>
-            </Card>
-          </Col>
-        </Row>
-
-        {/* Recent Posts */}
-        <Title level={3} style={{ marginBottom: 16 }}>
+        <Title level={3} style={{ margin: 0 }}>
           <ReadOutlined /> Bài viết mới nhất
         </Title>
+        <Link href="/posts">
+          <Button type="link" icon={<ArrowRightOutlined />} iconPosition="end">
+            Xem tất cả
+          </Button>
+        </Link>
+      </div>
+
+      {loading ? (
         <Row gutter={[16, 16]} style={{ marginBottom: 48 }}>
-          {demoPosts.map((post) => (
-            <Col xs={24} md={8} key={post.id}>
-              <Card
-                hoverable
-                style={{ height: '100%' }}
-              >
-                <Tag color={post.color} style={{ marginBottom: 8 }}>
-                  {post.category}
-                </Tag>
-                <Title level={5} style={{ marginTop: 0 }}>
-                  {post.title}
-                </Title>
-                {post.author && (
-                  <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-                    Tác giả: {post.author}
-                  </Text>
-                )}
-                <Paragraph
-                  type="secondary"
-                  ellipsis={{ rows: 3 }}
-                  style={{ marginBottom: 0 }}
-                >
-                  {post.excerpt}
-                </Paragraph>
+          {[1, 2, 3].map((i) => (
+            <Col xs={24} md={8} key={i}>
+              <Card>
+                <Skeleton active paragraph={{ rows: 3 }} />
               </Card>
             </Col>
           ))}
         </Row>
+      ) : posts.length === 0 ? (
+        <Empty
+          description="Chưa có bài viết nào"
+          style={{ marginBottom: 48 }}
+        />
+      ) : (
+        <Row gutter={[16, 16]} style={{ marginBottom: 48 }}>
+          {posts.map((post, idx) => (
+            <Col xs={24} sm={12} md={8} key={post.id}>
+              <Link href={`/posts/${post.slug}`} style={{ display: 'block', height: '100%' }}>
+                <Card hoverable style={{ height: '100%' }}>
+                  {post.category && (
+                    <Tag color={getCategoryColor(idx)} style={{ marginBottom: 8 }}>
+                      {post.category.name}
+                    </Tag>
+                  )}
+                  <Title level={5} style={{ marginTop: 0 }}>
+                    {post.title}
+                  </Title>
+                  {post.author_name && (
+                    <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                      Tác giả: {post.author_name}
+                    </Text>
+                  )}
+                  <Paragraph
+                    type="secondary"
+                    ellipsis={{ rows: 3 }}
+                    style={{ marginBottom: 8 }}
+                  >
+                    {post.excerpt || 'Chưa có mô tả...'}
+                  </Paragraph>
+                  {post.published_at && (
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      <CalendarOutlined />{' '}
+                      {new Date(post.published_at).toLocaleDateString('vi-VN')}
+                    </Text>
+                  )}
+                </Card>
+              </Link>
+            </Col>
+          ))}
+        </Row>
+      )}
 
-        {/* Recent Trading Reports */}
-        <Title level={3} style={{ marginBottom: 16 }}>
+      {/* Recent Trading Reports */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 16,
+        }}
+      >
+        <Title level={3} style={{ margin: 0 }}>
           <LineChartOutlined /> Trading Reports gần đây
         </Title>
+        <Link href="/trading-reports">
+          <Button type="link" icon={<ArrowRightOutlined />} iconPosition="end">
+            Xem tất cả
+          </Button>
+        </Link>
+      </div>
+
+      {loading ? (
         <Row gutter={[16, 16]}>
-          {demoReports.map((report, idx) => (
-            <Col xs={24} md={12} key={idx}>
-              <Card hoverable>
-                <Space>
-                  <Tag color="volcano">{report.session}</Tag>
-                  <Text type="secondary">{report.date}</Text>
-                </Space>
-                <Paragraph style={{ marginTop: 8, marginBottom: 0 }}>
-                  {report.summary}
-                </Paragraph>
+          {[1, 2].map((i) => (
+            <Col xs={24} md={12} key={i}>
+              <Card>
+                <Skeleton active paragraph={{ rows: 2 }} />
               </Card>
             </Col>
           ))}
         </Row>
-      </Content>
-
-      <Footer style={{ textAlign: 'center' }}>
-        My Blog ©2026 — Built with Next.js, Ant Design & Supabase
-      </Footer>
-    </Layout>
+      ) : reports.length === 0 ? (
+        <Empty description="Chưa có trading report nào" />
+      ) : (
+        <Row gutter={[16, 16]}>
+          {reports.map((report) => (
+            <Col xs={24} sm={12} key={report.id}>
+              <Link
+                href={`/trading-reports/${report.id}`}
+                style={{ display: 'block', height: '100%' }}
+              >
+                <Card hoverable style={{ height: '100%' }}>
+                  <Space style={{ marginBottom: 8 }}>
+                    <Tag color={sessionColors[report.session] || 'default'}>
+                      {report.session}
+                    </Tag>
+                    <Text type="secondary">
+                      <CalendarOutlined />{' '}
+                      {new Date(report.report_date).toLocaleDateString('vi-VN')}
+                    </Text>
+                  </Space>
+                  <Title level={5} style={{ marginTop: 0, marginBottom: 4 }}>
+                    {report.title}
+                  </Title>
+                  <Paragraph
+                    type="secondary"
+                    ellipsis={{ rows: 2 }}
+                    style={{ marginBottom: 0 }}
+                  >
+                    {/* Strip HTML tags for preview */}
+                    {report.content?.replace(/<[^>]*>/g, '').slice(0, 150) || 'Chưa có nội dung...'}
+                  </Paragraph>
+                </Card>
+              </Link>
+            </Col>
+          ))}
+        </Row>
+      )}
+    </>
   );
 }

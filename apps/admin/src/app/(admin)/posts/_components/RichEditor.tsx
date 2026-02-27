@@ -126,7 +126,7 @@ export default function RichEditor({
             tip="Inline code"
           />
 
-          <Divider type="vertical" />
+          <Divider orientation="vertical" />
 
           <ToolBtn
             icon={<span style={{ fontSize: 12, fontWeight: 700 }}>H2</span>}
@@ -141,7 +141,7 @@ export default function RichEditor({
             tip="Heading 3"
           />
 
-          <Divider type="vertical" />
+          <Divider orientation="vertical" />
 
           <ToolBtn
             icon={<UnorderedListOutlined />}
@@ -156,7 +156,7 @@ export default function RichEditor({
             tip="Numbered list"
           />
 
-          <Divider type="vertical" />
+          <Divider orientation="vertical" />
 
           <ToolBtn
             icon={<span style={{ fontSize: 11 }}>{'{}'}</span>}
@@ -182,7 +182,7 @@ export default function RichEditor({
             tip="Horizontal rule"
           />
 
-          <Divider type="vertical" />
+          <Divider orientation="vertical" />
 
           <ToolBtn
             icon={<UndoOutlined />}

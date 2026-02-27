@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { AntdRegistry } from '@ant-design/nextjs-registry';
+import ClientLayout from '@/components/ClientLayout';
+import './globals.css';
 
 export const metadata: Metadata = {
   title: 'My Blog — Reviews, Trading & Knowledge',
@@ -15,7 +17,9 @@ export default function RootLayout({
   return (
     <html lang="vi">
       <body suppressHydrationWarning>
-        <AntdRegistry>{children}</AntdRegistry>
+        <AntdRegistry>
+          <ClientLayout>{children}</ClientLayout>
+        </AntdRegistry>
       </body>
     </html>
   );

@@ -4,8 +4,8 @@
 > Gửi file này cho Claude khi bắt đầu chat mới.
 
 ## Trạng thái hiện tại
-**Phase:** 2 — Admin Core
-**Đang làm:** CRUD Categories (tiếp theo)
+**Phase:** 4 — Polish & Deploy
+**Đang làm:** SEO, global search, Trading Dashboard, deploy Vercel
 
 ## Đã hoàn thành
 
@@ -21,7 +21,7 @@
 - [2026-02-25] Kết nối Supabase SDK với client app — test thành công
 - [2026-02-25] Deploy demo lên Vercel (2 projects từ 1 repo)
 
-### Phase 2 — Admin Core (đang làm)
+### Phase 2 — Admin Core ✅
 - [2026-02-25] Admin authentication (login/logout) với Supabase Auth
 - [2026-02-25] Admin layout (sidebar, header, route group)
 - [2026-02-25] Admin dashboard với stats từ database
@@ -31,28 +31,43 @@
 - [2026-02-26] CRUD Trading Reports (list, search, filter, create, edit, delete + DatePicker + session)
 - [2026-02-26] CRUD Trades (list, search, filter, create, edit, delete + summary bar + PnL/winrate)
 
+### Phase 3 — Client App ✅
+- [2026-02-27] Public layout (responsive Navbar + Footer + ClientLayout wrapper)
+- [2026-02-27] Homepage với real Supabase data (stats, recent posts, recent reports)
+- [2026-02-27] Blog listing page (/posts) — search, category filter, pagination
+- [2026-02-27] Blog detail page (/posts/[slug]) — content, tags, related posts
+- [2026-02-27] Trading Reports listing (/trading-reports) — search, session filter, pagination
+- [2026-02-27] Trading Report detail (/trading-reports/[id]) — content, trades table, PnL summary
+
 ## Đang làm
-- Phase 2 hoàn thành! Chuẩn bị Phase 3 — Client App
+- Phase 4 — Polish & Deploy
 
 ## Bước tiếp theo
-- [x] ~~CRUD Trades~~
-- [x] ~~CRUD Trading Reports~~
-- [x] ~~CRUD Posts (với rich text editor)~~
-- [x] ~~CRUD Tags~~
-- [x] ~~CRUD Categories (list, create, edit, delete)~~
-- [ ] CRUD Posts (với rich text editor)
-- [ ] CRUD Trading Reports
-- [ ] CRUD Trades
+- [ ] SEO metadata (per-page titles, descriptions, Open Graph)
+- [ ] Global search
+- [ ] Trading Dashboard (tổng hợp PnL, win rate, charts)
+- [ ] Content styles (post HTML rendering)
+- [ ] Deploy lên Vercel + test production
 
 ## Cấu trúc hiện tại
 
 ### Client (apps/client/src/)
 ```
 app/
-  layout.tsx          ← Root layout + AntdRegistry
-  page.tsx            ← Homepage (demo + Supabase test)
+  layout.tsx                ← Root layout + AntdRegistry + ClientLayout
+  page.tsx                  ← Homepage (real data từ Supabase)
+  posts/
+    page.tsx                ← Blog listing (search, filter, pagination)
+    [slug]/page.tsx         ← Blog detail (content, tags, related)
+  trading-reports/
+    page.tsx                ← Reports listing (search, session filter)
+    [id]/page.tsx           ← Report detail (content, trades, PnL)
+components/
+  Navbar.tsx                ← Responsive navbar + mobile drawer
+  Footer.tsx                ← Footer với links
+  ClientLayout.tsx          ← Layout wrapper (Navbar + Content + Footer)
 lib/
-  supabase.ts         ← Supabase client
+  supabase.ts               ← Supabase client
 ```
 
 ### Admin (apps/admin/src/)
@@ -99,3 +114,4 @@ lib/
 - body cần suppressHydrationWarning (do Grammarly extension)
 - Supabase client đặt trong mỗi app (apps/*/src/lib/supabase.ts), không đặt trong shared
 - Admin dùng route group (admin) để tách layout login vs dashboard
+- Client dùng shared types via `import from 'shared'`
