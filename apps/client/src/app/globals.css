@@ -1,7 +1,12 @@
 /* ========================================
    Global Styles — My Blog Client
    ======================================== */
-
+html,
+body {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  height: auto !important;
+}
 /* Post Content Styles (HTML from TipTap editor) */
 .post-content {
   font-size: 16px;

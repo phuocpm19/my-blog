@@ -4,8 +4,8 @@
 > Gửi file này cho Claude khi bắt đầu chat mới.
 
 ## Trạng thái hiện tại
-**Phase:** 5 — Extensions ✅ ĐANG MỞ RỘNG
-**Trạng thái:** Project cơ bản hoàn thành, đang thêm tính năng mới
+**Phase:** 5 — Extensions (đang mở rộng)
+**Trạng thái:** Project cơ bản hoàn thành, đang thêm tính năng UX cho trang bài viết
 
 ## Đã hoàn thành
 
@@ -49,27 +49,49 @@
 - [2026-02-27] Supabase client lazy init (fix build crash khi thiếu env vars)
 - [2026-02-27] Deploy lên Vercel — cả client + admin build thành công
 
-### Phase 5 — Extensions ✅
+### Phase 5 — Extensions (đang làm)
 - [2026-03-03] Trang Công cụ (/tools) — position size calculator với 2 chế độ:
   - **Giá → Lot**: tính khối lượng từ entry/SL/TP + risk %
   - **Lot → SL/TP**: tính giá SL/TP từ volume + RR
   - Hỗ trợ BTC/USD, ETH/USD, XAU/USD trên Exness & FTMO
   - Validation SL/TP theo chiều Buy/Sell (border đỏ + error message)
   - TP tuỳ chọn — RR chỉ hiện khi nhập đủ SL + TP
-  - Result card luôn hiện (—  khi chưa nhập), cập nhật real-time
+  - Result card luôn hiện (— khi chưa nhập), cập nhật real-time
   - UI dark theme, không dùng Ant Design (native HTML + inline styles)
   - Kết quả hiển thị 2 hàng: hàng 1 (price change + %), hàng 2 ($ amount, to hơn, căn giữa)
+- [2026-03-03] RichEditor (admin) — thêm nút **HTML** ở toolbar, mở modal với TextArea để paste/import HTML trực tiếp vào TipTap editor
+- [2026-03-03] PostDetailClient — Reading time ✅ hiển thị "X phút đọc" cạnh meta
+- [2026-03-03] PostDetailClient — Table of Contents ✅ hiển thị đúng, active heading tracking hoạt động, TOC nằm bên trái bài viết
 
-## Đang làm
-- (Không có)
+## 🚧 Đang làm dở — CẦN FIX Ở CHAT MỚI
 
-## Bước tiếp theo (nếu muốn mở rộng)
+### 1. Scroll-to-top button (CHƯA HIỂN THỊ)
+- Button định nghĩa trong `ClientLayout.tsx`, đặt ngoài `<Layout>` (sau thẻ đóng `</Layout>`)
+- Scroll event **đã hoạt động** (verified qua console: `ClientLayout scroll: 3276...`)
+- `window.scrollY` cập nhật đúng
+- **Vấn đề:** Button không hiển thị dù đã scroll > 400px, dù dùng `if (!visible) return null` hay `opacity: 0`
+- **Đã thử:** createPortal vào document.body, opacity toggle, if/return null — đều không hiệu quả
+- **Nghi ngờ:** Ant Design Layout (`<Layout>`) tạo stacking context che button dù nằm ngoài `<Layout>`
+- **Chưa thử:** Đặt button trong `Navbar.tsx` (vốn đã fixed) hoặc trong `app/layout.tsx` (root layout ngoài hoàn toàn Ant Design)
+
+### 2. TOC sticky (CHƯA HOẠT ĐỘNG)
+- TOC chỉ xuất hiện ở trên cùng khi load trang, không sticky khi scroll xuống
+- TOC element tìm thấy đúng qua querySelector, parent overflow = `visible` (đã verify qua console)
+- **Vấn đề:** `position: sticky` không hoạt động trong flex container của Ant Design `<Content>`
+- **Đã thử:** `alignSelf: flex-start`, `height: 100%` trên flex container, tách sticky ra wrapper div riêng
+- **Chưa thử:** Dùng `position: fixed` + tính toán top/left thủ công thay vì sticky
+
+### 3. Reading Progress Bar (TẠM BỎ QUA)
+- Bar render đúng (thấy khi scroll lên), nhưng mất khi scroll xuống
+- **Nguyên nhân nghi ngờ:** Navbar có z-index cao hơn che bar
+- **Ý tưởng thay thế từ user:** Bỏ progress bar ngang ở top, thay bằng highlight heading đang đọc trong TOC (đã có active tracking, chỉ cần style tốt hơn) — tuy nhiên ưu tiên thấp, giải quyết sau khi fix xong sticky và scroll-to-top
+
+## Bước tiếp theo (sau khi fix xong)
+- [ ] Commit + push lên GitHub
 - [ ] Open Graph images (auto-generated per post)
 - [ ] RSS feed
 - [ ] Dark mode
 - [ ] Comments system (Giscus hoặc Supabase-based)
-- [ ] Reading time estimate
-- [ ] Table of contents cho bài viết dài
 - [ ] Analytics (Vercel Analytics hoặc Umami)
 - [ ] Thêm công cụ: Pip Value Calculator
 - [ ] Thêm công cụ: Margin Calculator
@@ -92,7 +114,7 @@ app/
     [slug]/
       page.tsx              ← Blog detail (server + generateMetadata)
       _components/
-        PostDetailClient.tsx ← Post detail client component
+        PostDetailClient.tsx ← Post detail client component (TOC + reading time)
   trading-reports/
     page.tsx                ← Reports listing (server + metadata)
     _components/
@@ -112,7 +134,7 @@ app/
 components/
   Navbar.tsx                ← Responsive navbar + search button + Ctrl+K
   Footer.tsx                ← Footer với links
-  ClientLayout.tsx          ← Layout wrapper (Navbar + Content + Footer)
+  ClientLayout.tsx          ← Layout wrapper (Navbar + Content + Footer) + ScrollToTop (đang fix)
   SearchModal.tsx           ← Global search modal (posts + reports)
 lib/
   supabase.ts               ← Supabase client (lazy init)
@@ -133,7 +155,7 @@ app/
       new/page.tsx      ← Tạo bài mới
       [id]/edit/page.tsx ← Chỉnh sửa bài
       _components/
-        RichEditor.tsx  ← TipTap rich text editor
+        RichEditor.tsx  ← TipTap rich text editor + nút HTML import/export
         PostForm.tsx    ← Shared form (create/edit)
     trading-reports/
       page.tsx          ← Reports list
@@ -155,7 +177,8 @@ lib/
 - Sample data: 4 categories, 6 tags
 
 ## Blocker / Vấn đề cần giải quyết
-- (Chưa có)
+- Scroll-to-top button không hiển thị (xem mục 🚧 bên trên)
+- TOC không sticky (xem mục 🚧 bên trên)
 
 ## Quy ước
 - Node.js v20 (via nvm)
@@ -165,3 +188,5 @@ lib/
 - Client dùng shared types via `import from 'shared'`
 - Trang Tools dùng native HTML + inline styles (không dùng Ant Design) để tránh conflict styling
 - Style input: dùng `borderWidth/borderStyle/borderColor` riêng biệt, KHÔNG dùng shorthand `border` kết hợp với `borderColor` trong cùng object (React warning)
+- Ant Design `<Divider>` dùng `type="vertical"` KHÔNG dùng `orientation="vertical"`
+- Ant Design `<Layout>` tạo stacking context — cẩn thận với `position: fixed` và `position: sticky` bên trong
