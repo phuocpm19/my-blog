@@ -4,8 +4,8 @@
 > Gửi file này cho Claude khi bắt đầu chat mới.
 
 ## Trạng thái hiện tại
-**Phase:** 4 — Polish & Deploy ✅ HOÀN TẤT
-**Trạng thái:** Project hoàn thành, deployed on Vercel
+**Phase:** 5 — Extensions ✅ ĐANG MỞ RỘNG
+**Trạng thái:** Project cơ bản hoàn thành, đang thêm tính năng mới
 
 ## Đã hoàn thành
 
@@ -49,8 +49,19 @@
 - [2026-02-27] Supabase client lazy init (fix build crash khi thiếu env vars)
 - [2026-02-27] Deploy lên Vercel — cả client + admin build thành công
 
+### Phase 5 — Extensions ✅
+- [2026-03-03] Trang Công cụ (/tools) — position size calculator với 2 chế độ:
+  - **Giá → Lot**: tính khối lượng từ entry/SL/TP + risk %
+  - **Lot → SL/TP**: tính giá SL/TP từ volume + RR
+  - Hỗ trợ BTC/USD, ETH/USD, XAU/USD trên Exness & FTMO
+  - Validation SL/TP theo chiều Buy/Sell (border đỏ + error message)
+  - TP tuỳ chọn — RR chỉ hiện khi nhập đủ SL + TP
+  - Result card luôn hiện (—  khi chưa nhập), cập nhật real-time
+  - UI dark theme, không dùng Ant Design (native HTML + inline styles)
+  - Kết quả hiển thị 2 hàng: hàng 1 (price change + %), hàng 2 ($ amount, to hơn, căn giữa)
+
 ## Đang làm
-- (Không có — project hoàn tất)
+- (Không có)
 
 ## Bước tiếp theo (nếu muốn mở rộng)
 - [ ] Open Graph images (auto-generated per post)
@@ -60,6 +71,8 @@
 - [ ] Reading time estimate
 - [ ] Table of contents cho bài viết dài
 - [ ] Analytics (Vercel Analytics hoặc Umami)
+- [ ] Thêm công cụ: Pip Value Calculator
+- [ ] Thêm công cụ: Margin Calculator
 
 ## Cấu trúc hiện tại
 
@@ -92,6 +105,10 @@ app/
     page.tsx                ← Dashboard (server + metadata)
     _components/
       DashboardClient.tsx   ← Dashboard client component
+  tools/
+    page.tsx                ← Công cụ giao dịch (server + metadata)
+    _components/
+      ToolsClient.tsx       ← Calculator UI (native HTML, dark theme, no Antd)
 components/
   Navbar.tsx                ← Responsive navbar + search button + Ctrl+K
   Footer.tsx                ← Footer với links
@@ -146,3 +163,5 @@ lib/
 - Supabase client đặt trong mỗi app (apps/*/src/lib/supabase.ts), không đặt trong shared
 - Admin dùng route group (admin) để tách layout login vs dashboard
 - Client dùng shared types via `import from 'shared'`
+- Trang Tools dùng native HTML + inline styles (không dùng Ant Design) để tránh conflict styling
+- Style input: dùng `borderWidth/borderStyle/borderColor` riêng biệt, KHÔNG dùng shorthand `border` kết hợp với `borderColor` trong cùng object (React warning)

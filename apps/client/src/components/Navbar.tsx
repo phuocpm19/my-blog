@@ -11,6 +11,7 @@ import {
   FundOutlined,
   MenuOutlined,
   SearchOutlined,
+  CalculatorOutlined
 } from '@ant-design/icons';
 import SearchModal from './SearchModal';
 
@@ -30,6 +31,11 @@ const navItems = [
     key: '/trading-dashboard',
     icon: <FundOutlined />,
     label: <Link href="/trading-dashboard">Dashboard</Link>,
+  },
+  {
+    key: '/tools',
+    icon: <CalculatorOutlined />,
+    label: <Link href="/tools">Công cụ</Link>,
   },
 ];
 
