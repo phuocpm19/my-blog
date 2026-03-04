@@ -22,11 +22,12 @@ import type { RcFile } from 'antd/es/upload';
 interface RichEditorProps {
   value?: string;
   onChange?: (value: string) => void;
+  placeholder?: string;
 }
 
 const BUCKET = 'post-images'; // Tên bucket trong Supabase Storage
 
-export default function RichEditor({ value, onChange }: RichEditorProps) {
+export default function RichEditor({ value, onChange, placeholder }: RichEditorProps) {
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [imageModalOpen, setImageModalOpen] = useState(false);
@@ -41,7 +42,7 @@ export default function RichEditor({ value, onChange }: RichEditorProps) {
       StarterKit,
       Image.configure({ HTMLAttributes: { style: 'max-width:100%;border-radius:8px;' } }),
       Link.configure({ openOnClick: false }),
-      Placeholder.configure({ placeholder: 'Bắt đầu viết bài...' }),
+      Placeholder.configure({ placeholder: placeholder ?? 'Bắt đầu viết bài...' }),
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Underline,
     ],

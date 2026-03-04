@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import PostsPageClient from './_components/PostsClient';
+import { Suspense } from 'react';
+import { Skeleton } from 'antd';
 
 export const metadata: Metadata = {
   title: 'Bài viết',
@@ -11,5 +13,8 @@ export const metadata: Metadata = {
 };
 
 export default function PostsPage() {
-  return <PostsPageClient />;
+  return <Suspense fallback={<Skeleton active paragraph={{ rows: 6 }} />}>
+  <PostsPageClient />
+</Suspense>
+;
 }
