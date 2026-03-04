@@ -6,14 +6,20 @@ import { supabase } from '@/lib/supabase';
 import { Spin } from 'antd';
 import type { User } from '@supabase/supabase-js';
 
+export type UserRole = 'admin' | 'editor' | null;
+
 interface AuthContextType {
   user: User | null;
+  role: UserRole;
+  isAdmin: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  role: null,
+  isAdmin: false,
   loading: true,
   signOut: async () => {},
 });
@@ -22,23 +28,35 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+async function fetchRole(userId: string): Promise<UserRole> {
+  const { data } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .single();
+  return (data?.role as UserRole) ?? null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [role, setRole] = useState<UserRole>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    // Lấy session hiện tại
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const u = session?.user ?? null;
+      setUser(u);
+      if (u) setRole(await fetchRole(u.id));
       setLoading(false);
     });
 
-    // Lắng nghe thay đổi auth state
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setUser(session?.user ?? null);
+      async (_event, session) => {
+        const u = session?.user ?? null;
+        setUser(u);
+        setRole(u ? await fetchRole(u.id) : null);
         setLoading(false);
       }
     );
@@ -48,14 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loading) {
-      // Chưa đăng nhập + không ở trang login → redirect về login
-      if (!user && pathname !== '/login') {
-        router.push('/login');
-      }
-      // Đã đăng nhập + đang ở trang login → redirect về dashboard
-      if (user && pathname === '/login') {
-        router.push('/');
-      }
+      if (!user && pathname !== '/login') router.push('/login');
+      if (user && pathname === '/login') router.push('/');
     }
   }, [user, loading, pathname, router]);
 
@@ -64,22 +76,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push('/login');
   };
 
-  // Đang kiểm tra auth → hiện loading
   if (loading) {
     return (
-      <div style={{
-        height: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Spin size="large" />
       </div>
     );
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, signOut }}>
+    <AuthContext.Provider value={{ user, role, isAdmin: role === 'admin', loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );

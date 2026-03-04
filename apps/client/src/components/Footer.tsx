@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Layout, Typography, Space, Grid } from 'antd';
 import { GithubOutlined } from '@ant-design/icons';
+import { useTheme } from './ThemeContext';
 
 const { Footer: AntFooter } = Layout;
 const { Text } = Typography;
@@ -10,14 +11,16 @@ const { useBreakpoint } = Grid;
 
 export default function Footer() {
   const screens = useBreakpoint();
+  const { isDark } = useTheme();
 
   return (
     <AntFooter
       style={{
         textAlign: 'center',
-        background: '#fafafa',
-        borderTop: '1px solid #f0f0f0',
+        background: isDark ? '#1f1f1f' : '#fafafa',
+        borderTop: `1px solid ${isDark ? '#303030' : '#f0f0f0'}`,
         padding: screens.md ? '24px 48px' : '24px 16px',
+        transition: 'background 0.2s ease, border-color 0.2s ease',
       }}
     >
       <Space direction="vertical" size={4}>

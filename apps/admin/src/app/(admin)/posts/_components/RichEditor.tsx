@@ -1,332 +1,309 @@
+// apps/admin/src/app/(admin)/posts/_components/RichEditor.tsx
 'use client';
 
-import { useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import Placeholder from '@tiptap/extension-placeholder';
+import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
-import { Button, Space, Tooltip, Divider, Modal, Input } from 'antd';
+import Placeholder from '@tiptap/extension-placeholder';
+import TextAlign from '@tiptap/extension-text-align';
+import Underline from '@tiptap/extension-underline';
+import { Button, Tooltip, Divider, Modal, Input, Upload, message, Tabs } from 'antd';
 import {
-  BoldOutlined,
-  ItalicOutlined,
-  StrikethroughOutlined,
-  OrderedListOutlined,
-  UnorderedListOutlined,
-  CodeOutlined,
-  UndoOutlined,
-  RedoOutlined,
-  LinkOutlined,
-  LineOutlined,
-  CodeSandboxOutlined,
+  BoldOutlined, ItalicOutlined, UnderlineOutlined, StrikethroughOutlined,
+  OrderedListOutlined, UnorderedListOutlined, CodeOutlined, LinkOutlined,
+  AlignLeftOutlined, AlignCenterOutlined, AlignRightOutlined,
+  PictureOutlined, UploadOutlined, CodeSandboxOutlined,
 } from '@ant-design/icons';
-
-const { TextArea } = Input;
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import type { RcFile } from 'antd/es/upload';
 
 interface RichEditorProps {
   value?: string;
-  onChange?: (html: string) => void;
-  placeholder?: string;
+  onChange?: (value: string) => void;
 }
 
-export default function RichEditor({
-  value = '',
-  onChange,
-  placeholder = 'Viết nội dung bài viết...',
-}: RichEditorProps) {
+const BUCKET = 'post-images'; // Tên bucket trong Supabase Storage
+
+export default function RichEditor({ value, onChange }: RichEditorProps) {
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
   const [htmlModalOpen, setHtmlModalOpen] = useState(false);
-  const [htmlInput, setHtmlInput] = useState('');
+  const [htmlContent, setHtmlContent] = useState('');
 
   const editor = useEditor({
-    immediatelyRender: false,
+    immediatelyRender: false,  
     extensions: [
-      StarterKit.configure({
-        heading: { levels: [2, 3, 4] },
-      }),
-      Placeholder.configure({ placeholder }),
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: { target: '_blank' },
-      }),
+      StarterKit,
+      Image.configure({ HTMLAttributes: { style: 'max-width:100%;border-radius:8px;' } }),
+      Link.configure({ openOnClick: false }),
+      Placeholder.configure({ placeholder: 'Bắt đầu viết bài...' }),
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      Underline,
     ],
-    content: value,
-    onUpdate: ({ editor }) => {
-      onChange?.(editor.getHTML());
-    },
-    editorProps: {
-      attributes: {
-        style:
-          'min-height: 300px; padding: 16px; outline: none; font-size: 15px; line-height: 1.8;',
-      },
-    },
+    content: value ?? '',
+    onUpdate: ({ editor }) => onChange?.(editor.getHTML()),
   });
+
+  useEffect(() => {
+  if (!editor) return;
+  const current = editor.getHTML();
+  if (value && value !== current) {
+    editor.commands.setContent(value, { emitUpdate: false });
+  }
+}, [value, editor]);
 
   if (!editor) return null;
 
-  const addLink = () => {
-    const url = window.prompt('Nhập URL:');
-    if (url) {
-      editor.chain().focus().setLink({ href: url }).run();
+  // ─── Upload ảnh lên Supabase Storage ───
+  const handleUpload = async (file: RcFile) => {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowed.includes(file.type)) {
+      message.error('Chỉ hỗ trợ JPG, PNG, WebP, GIF');
+      return false;
     }
+    if (file.size > 5 * 1024 * 1024) {
+      message.error('Ảnh tối đa 5MB');
+      return false;
+    }
+
+    setUploading(true);
+    const ext = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const { data, error } = await supabase.storage
+      .from(BUCKET)
+      .upload(fileName, file, { contentType: file.type, upsert: false });
+
+    if (error) {
+      message.error('Upload thất bại: ' + error.message);
+      setUploading(false);
+      return false;
+    }
+
+    // Lấy public URL
+    const { data: { publicUrl } } = supabase.storage.from(BUCKET).getPublicUrl(data.path);
+    editor.chain().focus().setImage({ src: publicUrl, alt: file.name }).run();
+    message.success('Upload thành công');
+    setUploading(false);
+    setImageModalOpen(false);
+    return false; // ngăn antd tự upload
   };
 
-  // Mở modal với nội dung HTML hiện tại
-  const openHtmlModal = () => {
-    setHtmlInput(editor.getHTML());
-    setHtmlModalOpen(true);
+  // ─── Insert ảnh từ URL ───
+  const handleInsertImageUrl = () => {
+    if (!imageUrl.trim()) return;
+    editor.chain().focus().setImage({ src: imageUrl.trim() }).run();
+    setImageUrl('');
+    setImageModalOpen(false);
   };
 
-  // Apply HTML vào editor
-  const applyHtml = () => {
-    if (htmlInput.trim()) {
-      editor.commands.setContent(htmlInput);
-      onChange?.(editor.getHTML());
+  // ─── Link ───
+  const handleInsertLink = () => {
+    if (!linkUrl.trim()) {
+      editor.chain().focus().unsetLink().run();
+    } else {
+      editor.chain().focus().setLink({ href: linkUrl.trim() }).run();
     }
+    setLinkUrl('');
+    setLinkModalOpen(false);
+  };
+
+  // ─── Import HTML ───
+  const handleImportHtml = () => {
+    if (!htmlContent.trim()) return;
+    editor.commands.setContent(htmlContent.trim());
+    onChange?.(editor.getHTML());
+    setHtmlContent('');
     setHtmlModalOpen(false);
   };
 
-  const ToolBtn = ({
-    icon,
-    action,
-    active,
-    tip,
-  }: {
-    icon: React.ReactNode;
-    action: () => void;
-    active?: boolean;
-    tip: string;
-  }) => (
-    <Tooltip title={tip}>
+  const ToolbarBtn = ({ icon, title, active, onClick, disabled }: any) => (
+    <Tooltip title={title}>
       <Button
         type={active ? 'primary' : 'text'}
         size="small"
         icon={icon}
-        onClick={action}
-        style={{ minWidth: 32 }}
+        onClick={onClick}
+        disabled={disabled}
       />
     </Tooltip>
   );
 
   return (
-    <>
-      <div
-        style={{
-          border: '1px solid #d9d9d9',
-          borderRadius: 8,
-          overflow: 'hidden',
-        }}
-      >
-        {/* Toolbar */}
-        <div
-          style={{
-            padding: '8px 12px',
-            borderBottom: '1px solid #d9d9d9',
-            background: '#fafafa',
-          }}
-        >
-          <Space size={2} wrap>
-            <ToolBtn
-              icon={<BoldOutlined />}
-              action={() => editor.chain().focus().toggleBold().run()}
-              active={editor.isActive('bold')}
-              tip="Bold"
-            />
-            <ToolBtn
-              icon={<ItalicOutlined />}
-              action={() => editor.chain().focus().toggleItalic().run()}
-              active={editor.isActive('italic')}
-              tip="Italic"
-            />
-            <ToolBtn
-              icon={<StrikethroughOutlined />}
-              action={() => editor.chain().focus().toggleStrike().run()}
-              active={editor.isActive('strike')}
-              tip="Strikethrough"
-            />
-            <ToolBtn
-              icon={<CodeOutlined />}
-              action={() => editor.chain().focus().toggleCode().run()}
-              active={editor.isActive('code')}
-              tip="Inline code"
-            />
+    <div style={{ border: '1px solid #d9d9d9', borderRadius: 8, overflow: 'hidden' }}>
+      {/* Toolbar */}
+      <div style={{
+        padding: '8px 12px',
+        borderBottom: '1px solid #f0f0f0',
+        background: '#fafafa',
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 2,
+        alignItems: 'center',
+      }}>
+        <ToolbarBtn icon={<BoldOutlined />} title="Bold (Ctrl+B)" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} />
+        <ToolbarBtn icon={<ItalicOutlined />} title="Italic (Ctrl+I)" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} />
+        <ToolbarBtn icon={<UnderlineOutlined />} title="Underline" active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()} />
+        <ToolbarBtn icon={<StrikethroughOutlined />} title="Strikethrough" active={editor.isActive('strike')} onClick={() => editor.chain().focus().toggleStrike().run()} />
 
-            <Divider orientation="vertical" />
+        <Divider orientation="vertical" />
 
-            <ToolBtn
-              icon={<span style={{ fontSize: 12, fontWeight: 700 }}>H2</span>}
-              action={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-              active={editor.isActive('heading', { level: 2 })}
-              tip="Heading 2"
-            />
-            <ToolBtn
-              icon={<span style={{ fontSize: 12, fontWeight: 700 }}>H3</span>}
-              action={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-              active={editor.isActive('heading', { level: 3 })}
-              tip="Heading 3"
-            />
+        {[1, 2, 3].map(level => (
+          <Tooltip key={level} title={`Heading ${level}`}>
+            <Button
+              type={editor.isActive('heading', { level }) ? 'primary' : 'text'}
+              size="small"
+              onClick={() => editor.chain().focus().toggleHeading({ level: level as any }).run()}
+              style={{ fontWeight: 700, fontSize: 12, minWidth: 28 }}
+            >
+              H{level}
+            </Button>
+          </Tooltip>
+        ))}
 
-            <Divider orientation="vertical" />
+        <Divider orientation="vertical" />
 
-            <ToolBtn
-              icon={<UnorderedListOutlined />}
-              action={() => editor.chain().focus().toggleBulletList().run()}
-              active={editor.isActive('bulletList')}
-              tip="Bullet list"
-            />
-            <ToolBtn
-              icon={<OrderedListOutlined />}
-              action={() => editor.chain().focus().toggleOrderedList().run()}
-              active={editor.isActive('orderedList')}
-              tip="Numbered list"
-            />
+        <ToolbarBtn icon={<UnorderedListOutlined />} title="Bullet list" active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()} />
+        <ToolbarBtn icon={<OrderedListOutlined />} title="Ordered list" active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()} />
 
-            <Divider orientation="vertical" />
+        <Divider orientation="vertical" />
 
-            <ToolBtn
-              icon={<span style={{ fontSize: 11 }}>{'{}'}</span>}
-              action={() => editor.chain().focus().toggleCodeBlock().run()}
-              active={editor.isActive('codeBlock')}
-              tip="Code block"
-            />
-            <ToolBtn
-              icon={<span style={{ fontSize: 12 }}>&ldquo;</span>}
-              action={() => editor.chain().focus().toggleBlockquote().run()}
-              active={editor.isActive('blockquote')}
-              tip="Blockquote"
-            />
-            <ToolBtn
-              icon={<LinkOutlined />}
-              action={addLink}
-              active={editor.isActive('link')}
-              tip="Link"
-            />
-            <ToolBtn
-              icon={<LineOutlined />}
-              action={() => editor.chain().focus().setHorizontalRule().run()}
-              tip="Horizontal rule"
-            />
+        <ToolbarBtn icon={<AlignLeftOutlined />} title="Align left" active={editor.isActive({ textAlign: 'left' })} onClick={() => editor.chain().focus().setTextAlign('left').run()} />
+        <ToolbarBtn icon={<AlignCenterOutlined />} title="Align center" active={editor.isActive({ textAlign: 'center' })} onClick={() => editor.chain().focus().setTextAlign('center').run()} />
+        <ToolbarBtn icon={<AlignRightOutlined />} title="Align right" active={editor.isActive({ textAlign: 'right' })} onClick={() => editor.chain().focus().setTextAlign('right').run()} />
 
-            <Divider orientation="vertical" />
+        <Divider orientation="vertical" />
 
-            <ToolBtn
-              icon={<UndoOutlined />}
-              action={() => editor.chain().focus().undo().run()}
-              tip="Undo"
-            />
-            <ToolBtn
-              icon={<RedoOutlined />}
-              action={() => editor.chain().focus().redo().run()}
-              tip="Redo"
-            />
+        <ToolbarBtn icon={<CodeOutlined />} title="Inline code" active={editor.isActive('code')} onClick={() => editor.chain().focus().toggleCode().run()} />
+        <ToolbarBtn icon={<CodeSandboxOutlined />} title="Code block" active={editor.isActive('codeBlock')} onClick={() => editor.chain().focus().toggleCodeBlock().run()} />
 
-            <Divider orientation="vertical" />
+        <Divider orientation="vertical" />
 
-            {/* HTML import/export button */}
-            <Tooltip title="Xem / Import HTML">
-              <Button
-                type="text"
-                size="small"
-                icon={<CodeSandboxOutlined />}
-                onClick={openHtmlModal}
-                style={{ minWidth: 32, color: '#1677ff' }}
-              >
-                HTML
-              </Button>
-            </Tooltip>
-          </Space>
-        </div>
+        <ToolbarBtn icon={<LinkOutlined />} title="Insert link" active={editor.isActive('link')} onClick={() => { setLinkUrl(editor.getAttributes('link').href ?? ''); setLinkModalOpen(true); }} />
 
-        {/* Editor content */}
-        <EditorContent editor={editor} />
+        {/* Nút ảnh — mở modal chọn upload hoặc URL */}
+        <Tooltip title="Insert image">
+          <Button
+            type="text"
+            size="small"
+            icon={<PictureOutlined />}
+            onClick={() => setImageModalOpen(true)}
+          />
+        </Tooltip>
 
-        {/* Basic styles for editor content */}
-        <style jsx global>{`
-          .tiptap h2 {
-            font-size: 1.5em;
-            font-weight: 600;
-            margin: 1em 0 0.5em;
-          }
-          .tiptap h3 {
-            font-size: 1.25em;
-            font-weight: 600;
-            margin: 1em 0 0.5em;
-          }
-          .tiptap p {
-            margin: 0.5em 0;
-          }
-          .tiptap ul,
-          .tiptap ol {
-            padding-left: 1.5em;
-            margin: 0.5em 0;
-          }
-          .tiptap blockquote {
-            border-left: 3px solid #d9d9d9;
-            padding-left: 1em;
-            color: #666;
-            margin: 0.5em 0;
-          }
-          .tiptap pre {
-            background: #1e1e1e;
-            color: #d4d4d4;
-            padding: 12px 16px;
-            border-radius: 6px;
-            overflow-x: auto;
-            margin: 0.5em 0;
-          }
-          .tiptap code {
-            background: #f0f0f0;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 0.9em;
-          }
-          .tiptap pre code {
-            background: none;
-            padding: 0;
-          }
-          .tiptap a {
-            color: #1677ff;
-            text-decoration: underline;
-          }
-          .tiptap hr {
-            border: none;
-            border-top: 1px solid #d9d9d9;
-            margin: 1em 0;
-          }
-          .tiptap p.is-editor-empty:first-child::before {
-            color: #adb5bd;
-            content: attr(data-placeholder);
-            float: left;
-            height: 0;
-            pointer-events: none;
-          }
-        `}</style>
+        <Divider orientation="vertical" />
+
+        <Tooltip title="Import HTML">
+          <Button
+            type="text"
+            size="small"
+            onClick={() => { setHtmlContent(editor.getHTML()); setHtmlModalOpen(true); }}
+            style={{ fontSize: 11, fontWeight: 600 }}
+          >
+            HTML
+          </Button>
+        </Tooltip>
       </div>
 
-      {/* HTML Modal */}
+      {/* Editor */}
+      <EditorContent
+        editor={editor}
+        style={{ minHeight: 400, padding: '16px', fontSize: 15, lineHeight: 1.8 }}
+      />
+
+      {/* Modal: Insert Image */}
       <Modal
-        title="HTML Editor"
-        open={htmlModalOpen}
-        onCancel={() => setHtmlModalOpen(false)}
-        width={760}
-        footer={[
-          <Button key="cancel" onClick={() => setHtmlModalOpen(false)}>
-            Huỷ
-          </Button>,
-          <Button key="apply" type="primary" onClick={applyHtml}>
-            Áp dụng
-          </Button>,
-        ]}
+        title="Chèn ảnh"
+        open={imageModalOpen}
+        onCancel={() => { setImageModalOpen(false); setImageUrl(''); }}
+        footer={null}
+        destroyOnHidden
       >
-        <p style={{ color: '#888', fontSize: 13, marginBottom: 8 }}>
-          Paste HTML vào đây để import nội dung, hoặc copy HTML hiện tại để export.
-        </p>
-        <TextArea
-          value={htmlInput}
-          onChange={(e) => setHtmlInput(e.target.value)}
-          rows={18}
-          style={{ fontFamily: 'monospace', fontSize: 13 }}
-          placeholder="Paste HTML content vào đây..."
+        <Tabs
+          items={[
+            {
+              key: 'upload',
+              label: 'Upload ảnh',
+              children: (
+                <div style={{ padding: '16px 0' }}>
+                  <Upload.Dragger
+                    accept="image/*"
+                    beforeUpload={handleUpload}
+                    showUploadList={false}
+                    disabled={uploading}
+                  >
+                    <p className="ant-upload-drag-icon"><UploadOutlined style={{ fontSize: 32 }} /></p>
+                    <p>Kéo thả hoặc click để upload</p>
+                    <p style={{ color: '#8c8c8c', fontSize: 12 }}>JPG, PNG, WebP, GIF — tối đa 5MB</p>
+                  </Upload.Dragger>
+                </div>
+              ),
+            },
+            {
+              key: 'url',
+              label: 'Từ URL',
+              children: (
+                <div style={{ padding: '16px 0' }}>
+                  <Input
+                    placeholder="https://example.com/image.jpg"
+                    value={imageUrl}
+                    onChange={e => setImageUrl(e.target.value)}
+                    onPressEnter={handleInsertImageUrl}
+                    style={{ marginBottom: 12 }}
+                  />
+                  <Button type="primary" onClick={handleInsertImageUrl} block>
+                    Chèn ảnh
+                  </Button>
+                </div>
+              ),
+            },
+          ]}
         />
       </Modal>
-    </>
+
+      {/* Modal: Link */}
+      <Modal
+        title="Insert Link"
+        open={linkModalOpen}
+        onOk={handleInsertLink}
+        onCancel={() => setLinkModalOpen(false)}
+        okText="Áp dụng"
+        cancelText="Hủy"
+        destroyOnHidden
+      >
+        <Input
+          placeholder="https://..."
+          value={linkUrl}
+          onChange={e => setLinkUrl(e.target.value)}
+          onPressEnter={handleInsertLink}
+          style={{ marginTop: 16 }}
+        />
+      </Modal>
+
+      {/* Modal: HTML */}
+      <Modal
+        title="Import / Export HTML"
+        open={htmlModalOpen}
+        onOk={handleImportHtml}
+        onCancel={() => setHtmlModalOpen(false)}
+        okText="Import vào editor"
+        cancelText="Đóng"
+        width={720}
+        destroyOnHidden
+      >
+        <Input.TextArea
+          value={htmlContent}
+          onChange={e => setHtmlContent(e.target.value)}
+          rows={16}
+          style={{ fontFamily: 'monospace', fontSize: 13, marginTop: 12 }}
+          placeholder="Paste HTML vào đây..."
+        />
+      </Modal>
+    </div>
   );
 }

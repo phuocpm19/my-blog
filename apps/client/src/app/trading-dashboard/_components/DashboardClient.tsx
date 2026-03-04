@@ -77,7 +77,7 @@ export default function DashboardClient() {
   if (loading) {
     return (
       <>
-        <Title level={2}><FundOutlined /> Trading Dashboard</Title>
+        <Title level={2}><FundOutlined /> Trading History</Title>
         <Row gutter={[16, 16]}>
           {[1, 2, 3, 4].map((i) => (
             <Col xs={12} sm={6} key={i}>
@@ -92,7 +92,7 @@ export default function DashboardClient() {
   if (trades.length === 0) {
     return (
       <>
-        <Title level={2}><FundOutlined /> Trading Dashboard</Title>
+        <Title level={2}><FundOutlined /> Trading History</Title>
         <Empty description="Chưa có dữ liệu giao dịch" style={{ padding: '64px 0' }} />
       </>
     );
@@ -250,7 +250,7 @@ export default function DashboardClient() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 16 }}>
         <Title level={2} style={{ margin: 0 }}>
-          <FundOutlined /> Trading Dashboard
+          <FundOutlined /> Trading History
         </Title>
         <Segmented
           value={timeRange}

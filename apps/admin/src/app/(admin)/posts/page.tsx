@@ -188,7 +188,7 @@ export default function PostsPage() {
               type="text"
               size="small"
               icon={<EyeOutlined />}
-              onClick={() => window.open(`/${record.slug}`, '_blank')}
+              onClick={() => window.open(`${process.env.NEXT_PUBLIC_CLIENT_URL ?? 'http://localhost:3000'}/posts/${record.slug}`, '_blank')}
               disabled={actionLoading === record.id}
             />
           )}

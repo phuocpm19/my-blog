@@ -1,13 +1,29 @@
 /* ========================================
    Global Styles — My Blog Client
    ======================================== */
-html,
-body {
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-  height: auto !important;
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
-/* Post Content Styles (HTML from TipTap editor) */
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+/* Ngăn Ant Design Layout tạo scrollbar ngang */
+.ant-layout {
+  overflow-x: hidden !important;
+}
+
+/* ─── Post Content Styles ─────────────────────────────────────────── */
 .post-content {
   font-size: 16px;
   line-height: 1.8;
@@ -120,12 +136,68 @@ body {
   font-weight: 600;
 }
 
-/* Smooth page transitions */
+/* ─── Smooth page transitions ─────────────────────────────────────── */
 main {
   animation: fadeIn 0.2s ease-in;
 }
 
 @keyframes fadeIn {
   from { opacity: 0; }
-  to { opacity: 1; }
+  to   { opacity: 1; }
+}
+
+/* ─── Dark mode overrides ─────────────────────────────────────────── */
+[data-theme="dark"] .post-content {
+  color: #e5e7eb;
+}
+
+[data-theme="dark"] .post-content h1,
+[data-theme="dark"] .post-content h2,
+[data-theme="dark"] .post-content h3,
+[data-theme="dark"] .post-content h4 {
+  color: #f3f4f6;
+}
+
+[data-theme="dark"] .post-content a {
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .post-content a:hover {
+  color: #93c5fd;
+}
+
+[data-theme="dark"] .post-content blockquote {
+  background: #1f2937;
+  border-left-color: #3b82f6;
+  color: #d1d5db;
+}
+
+[data-theme="dark"] .post-content pre,
+[data-theme="dark"] .post-content code {
+  background: #1f2937;
+  color: #e5e7eb;
+  border-color: #374151;
+}
+
+[data-theme="dark"] .post-content table th {
+  background: #1f2937;
+  color: #f3f4f6;
+  border-color: #374151;
+}
+
+[data-theme="dark"] .post-content table td {
+  border-color: #374151;
+  color: #e5e7eb;
+}
+
+[data-theme="dark"] .post-content table tr:nth-child(even) {
+  background: #111827;
+}
+
+[data-theme="dark"] .post-content hr {
+  border-color: #374151;
+}
+
+[data-theme="dark"] .post-content img {
+  opacity: 0.9;
 }

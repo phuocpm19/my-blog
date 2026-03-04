@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { AntdRegistry } from '@ant-design/nextjs-registry';
 import ClientLayout from '@/components/ClientLayout';
 import './globals.css';
+import { Analytics } from '@vercel/analytics/react';
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://my-blog-client.vercel.app';
 
@@ -47,6 +48,7 @@ export default function RootLayout({
         <AntdRegistry>
           <ClientLayout>{children}</ClientLayout>
         </AntdRegistry>
+        <Analytics />
       </body>
     </html>
   );

@@ -4,8 +4,10 @@
 > Gửi file này cho Claude khi bắt đầu chat mới.
 
 ## Trạng thái hiện tại
-**Phase:** 5 — Extensions (đang mở rộng)
-**Trạng thái:** Project cơ bản hoàn thành, đang thêm tính năng UX cho trang bài viết
+**Phase:** 6 — Admin Enhancements + Technical Improvements
+**Trạng thái:** Hoàn thành phân quyền, image upload, RSS feed, sidebar bài viết, bài viết liên quan
+
+---
 
 ## Đã hoàn thành
 
@@ -40,153 +42,179 @@
 - [2026-02-27] Trading Report detail (/trading-reports/[id]) — content, trades table, PnL summary
 
 ### Phase 4 — Polish & Deploy ✅
-- [2026-02-27] SEO metadata — root layout (OG, Twitter, title template), per-page static metadata, dynamic generateMetadata cho post/report detail
+- [2026-02-27] SEO metadata — root layout (OG, Twitter, title template), per-page static metadata, dynamic generateMetadata
 - [2026-02-27] Global Search — SearchModal (Ctrl+K), debounced search across posts + trading reports, keyboard navigation
-- [2026-02-27] Trading Dashboard — time range filter, stats (PnL, win rate, profit factor), cumulative PnL chart, pair breakdown, long/short performance
+- [2026-02-27] Trading Dashboard — time range filter, stats, cumulative PnL chart, pair breakdown
 - [2026-02-27] Content styles — .post-content CSS (headings, code, blockquote, table, images)
 - [2026-02-27] Refactored all pages: server component (metadata) + client component (interactive) pattern
-- [2026-02-27] Sitemap.xml (dynamic, fetch posts + reports từ Supabase) + robots.txt
+- [2026-02-27] Sitemap.xml (dynamic) + robots.txt
 - [2026-02-27] Supabase client lazy init (fix build crash khi thiếu env vars)
 - [2026-02-27] Deploy lên Vercel — cả client + admin build thành công
 
-### Phase 5 — Extensions (đang làm)
-- [2026-03-03] Trang Công cụ (/tools) — position size calculator với 2 chế độ:
-  - **Giá → Lot**: tính khối lượng từ entry/SL/TP + risk %
-  - **Lot → SL/TP**: tính giá SL/TP từ volume + RR
-  - Hỗ trợ BTC/USD, ETH/USD, XAU/USD trên Exness & FTMO
-  - Validation SL/TP theo chiều Buy/Sell (border đỏ + error message)
-  - TP tuỳ chọn — RR chỉ hiện khi nhập đủ SL + TP
-  - Result card luôn hiện (— khi chưa nhập), cập nhật real-time
-  - UI dark theme, không dùng Ant Design (native HTML + inline styles)
-  - Kết quả hiển thị 2 hàng: hàng 1 (price change + %), hàng 2 ($ amount, to hơn, căn giữa)
-- [2026-03-03] RichEditor (admin) — thêm nút **HTML** ở toolbar, mở modal với TextArea để paste/import HTML trực tiếp vào TipTap editor
-- [2026-03-03] PostDetailClient — Reading time ✅ hiển thị "X phút đọc" cạnh meta
-- [2026-03-03] PostDetailClient — Table of Contents ✅ hiển thị đúng, active heading tracking hoạt động, TOC nằm bên trái bài viết
+### Phase 5 — Extensions ✅
+- [2026-03-03] Trang Công cụ (/tools) — position size calculator 2 chế độ (Giá→Lot, Lot→SL/TP), hỗ trợ BTC/ETH/XAU trên Exness & FTMO
+- [2026-03-03] RichEditor — nút HTML import/export ở toolbar
+- [2026-03-03] PostDetailClient — Reading time "X phút đọc"
+- [2026-03-03] PostDetailClient — TOC fixed bên trái, active heading tracking
+- [2026-03-04] TOC — border/card style giống right sidebar
+- [2026-03-04] Scroll-to-top button — opacity pattern, sát cạnh phải bài viết
+- [2026-03-04] Dark mode — ThemeContext + localStorage + auto-detect system preference
+- [2026-03-04] Dark mode — Ant Design darkAlgorithm, Navbar toggle (desktop + mobile), Footer, post content CSS
+- [2026-03-04] globals.css — overflow-x hidden, box-sizing fix, loại bỏ duplicate rules
+- [2026-03-04] Tags clickable → /posts?tag=slug
+- [2026-03-04] PostsClient — filter theo tag từ URL ?tag=, badge "Đang lọc theo tag ✕"
+- [2026-03-04] PostDetailClient — Right sidebar fixed bên phải (Tags + Bài viết mới nhất 5 bài)
+- [2026-03-04] PostDetailClient — Bài viết liên quan cuối trang (ưu tiên chung tag → fallback cùng category, tối đa 4 bài)
+- [2026-03-04] useFixedPosition hook — dùng chung cho TOC (left) và right sidebar (right)
+- [2026-03-04] Navbar tab "Dashboard" → "Trading History" (client)
 
-## 🚧 Đang làm dở — CẦN FIX Ở CHAT MỚI
+### Phase 6 — Admin Enhancements + Technical ✅
 
-### 1. Scroll-to-top button (CHƯA HIỂN THỊ)
-- Button định nghĩa trong `ClientLayout.tsx`, đặt ngoài `<Layout>` (sau thẻ đóng `</Layout>`)
-- Scroll event **đã hoạt động** (verified qua console: `ClientLayout scroll: 3276...`)
-- `window.scrollY` cập nhật đúng
-- **Vấn đề:** Button không hiển thị dù đã scroll > 400px, dù dùng `if (!visible) return null` hay `opacity: 0`
-- **Đã thử:** createPortal vào document.body, opacity toggle, if/return null — đều không hiệu quả
-- **Nghi ngờ:** Ant Design Layout (`<Layout>`) tạo stacking context che button dù nằm ngoài `<Layout>`
-- **Chưa thử:** Đặt button trong `Navbar.tsx` (vốn đã fixed) hoặc trong `app/layout.tsx` (root layout ngoài hoàn toàn Ant Design)
+#### Phân quyền RBAC
+- [2026-03-04] Bảng `user_roles` trong Supabase (role: admin | editor)
+- [2026-03-04] RLS policies cho user_roles (user đọc role của mình)
+- [2026-03-04] AuthContext: thêm `role`, `isAdmin` vào context
+- [2026-03-04] Admin layout: menu ẩn/hiện theo role
+  - Editor: Dashboard, Categories, Tags, Posts
+  - Admin: tất cả + Trading Reports, Trades, Quản lý Users
+- [2026-03-04] Trang `/admin/users`: tạo/xóa/đổi role user (chỉ admin thấy)
+- [2026-03-04] API route `/api/admin/users` (GET/POST/DELETE/PATCH) dùng service_role key
+- [2026-03-04] Tài khoản: `phuocpm19@gmail.com` (admin), `ngocminhmilita@gmail.com` (editor)
+- [2026-03-04] Navbar dropdown user hiển thị Tag role (Admin đỏ / Biên tập viên xanh)
 
-### 2. TOC sticky (CHƯA HOẠT ĐỘNG)
-- TOC chỉ xuất hiện ở trên cùng khi load trang, không sticky khi scroll xuống
-- TOC element tìm thấy đúng qua querySelector, parent overflow = `visible` (đã verify qua console)
-- **Vấn đề:** `position: sticky` không hoạt động trong flex container của Ant Design `<Content>`
-- **Đã thử:** `alignSelf: flex-start`, `height: 100%` trên flex container, tách sticky ra wrapper div riêng
-- **Chưa thử:** Dùng `position: fixed` + tính toán top/left thủ công thay vì sticky
+#### Image Upload
+- [2026-03-04] Supabase Storage bucket `post-images` (public) + 3 RLS policies
+- [2026-03-04] RichEditor: nút 🖼 modal 2 tab — Upload (kéo thả ≤5MB) + URL
+- [2026-03-04] Fix SSR: `immediatelyRender: false`
+- [2026-03-04] Fix sync content khi edit bài cũ: `useEffect` + `setContent({ emitUpdate: false })`
+- [2026-03-04] Fix Divider warning: `orientation="vertical"`
 
-### 3. Reading Progress Bar (TẠM BỎ QUA)
-- Bar render đúng (thấy khi scroll lên), nhưng mất khi scroll xuống
-- **Nguyên nhân nghi ngờ:** Navbar có z-index cao hơn che bar
-- **Ý tưởng thay thế từ user:** Bỏ progress bar ngang ở top, thay bằng highlight heading đang đọc trong TOC (đã có active tracking, chỉ cần style tốt hơn) — tuy nhiên ưu tiên thấp, giải quyết sau khi fix xong sticky và scroll-to-top
+#### RSS Feed
+- [2026-03-04] `apps/client/src/app/feed.xml/route.ts`
+- [2026-03-04] 20 bài mới nhất, XML chuẩn RSS 2.0, Cache 1 giờ
+- [2026-03-04] Truy cập: `http://localhost:3000/feed.xml`
 
-## Bước tiếp theo (sau khi fix xong)
-- [ ] Commit + push lên GitHub
+#### Vercel Analytics
+- [2026-03-04] Cài `@vercel/analytics`, thêm `<Analytics />` vào root layout
+- [2026-03-04] Chỉ hoạt động trên production Vercel
+
+#### Khác
+- [2026-03-04] Admin preview link bài viết dùng `NEXT_PUBLIC_CLIENT_URL` (đúng port client)
+
+---
+
+## 🚧 Vấn đề đang tồn tại
+
+### Admin tabs loading mãi (Bài viết, Tags, Categories)
+- SQL query trực tiếp trong Supabase trả về data đúng
+- RLS policies OK (tất cả public SELECT)
+- **Nghi ngờ:** `apps/admin/.env.local` thiếu hoặc sai `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- **Cần làm:** So sánh env vars admin với client, kiểm tra Network tab DevTools
+
+---
+
+## Bước tiếp theo
+- [ ] Fix admin tabs loading (debug env vars)
+- [ ] Deploy lên Vercel (client + admin)
+- [ ] Giscus comments (repo: phuocpm19/my-blog)
+- [ ] Copy code button trong bài viết
 - [ ] Open Graph images (auto-generated per post)
-- [ ] RSS feed
-- [ ] Dark mode
-- [ ] Comments system (Giscus hoặc Supabase-based)
-- [ ] Analytics (Vercel Analytics hoặc Umami)
-- [ ] Thêm công cụ: Pip Value Calculator
-- [ ] Thêm công cụ: Margin Calculator
+- [ ] Thêm công cụ: Pip Value Calculator, Margin Calculator
 
-## Cấu trúc hiện tại
+---
+
+## Env Variables
+
+### apps/client/.env.local
+```
+NEXT_PUBLIC_SUPABASE_URL=https://ybedctecxhmswgfycnvf.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
+
+### apps/admin/.env.local
+```
+NEXT_PUBLIC_SUPABASE_URL=https://ybedctecxhmswgfycnvf.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGci...
+NEXT_PUBLIC_CLIENT_URL=http://localhost:3000
+```
+
+---
+
+## Cấu trúc file quan trọng
 
 ### Client (apps/client/src/)
 ```
 app/
-  layout.tsx                ← Root layout + AntdRegistry + ClientLayout + SEO metadata
-  page.tsx                  ← Homepage (server → _components/HomePage.tsx)
-  sitemap.ts                ← Dynamic sitemap (fetches posts + reports from Supabase)
-  robots.ts                 ← robots.txt configuration
-  _components/
-    HomePage.tsx            ← Homepage client component
+  layout.tsx                          ← Root layout + Analytics
+  feed.xml/route.ts                   ← RSS Feed
+  page.tsx                            ← Homepage
+  sitemap.ts / robots.ts
   posts/
-    page.tsx                ← Blog listing (server + metadata)
-    _components/
-      PostsClient.tsx       ← Posts list client component
-    [slug]/
-      page.tsx              ← Blog detail (server + generateMetadata)
-      _components/
-        PostDetailClient.tsx ← Post detail client component (TOC + reading time)
-  trading-reports/
-    page.tsx                ← Reports listing (server + metadata)
-    _components/
-      ReportsClient.tsx     ← Reports list client component
-    [id]/
-      page.tsx              ← Report detail (server + generateMetadata)
-      _components/
-        ReportDetailClient.tsx ← Report detail client component
-  trading-dashboard/
-    page.tsx                ← Dashboard (server + metadata)
-    _components/
-      DashboardClient.tsx   ← Dashboard client component
-  tools/
-    page.tsx                ← Công cụ giao dịch (server + metadata)
-    _components/
-      ToolsClient.tsx       ← Calculator UI (native HTML, dark theme, no Antd)
+    _components/PostsClient.tsx       ← tag filter + badge
+    [slug]/_components/
+      PostDetailClient.tsx            ← TOC fixed trái, right sidebar fixed,
+                                         related posts, reading time
+  trading-reports/...
+  trading-dashboard/...
+  tools/_components/ToolsClient.tsx
 components/
-  Navbar.tsx                ← Responsive navbar + search button + Ctrl+K
-  Footer.tsx                ← Footer với links
-  ClientLayout.tsx          ← Layout wrapper (Navbar + Content + Footer) + ScrollToTop (đang fix)
-  SearchModal.tsx           ← Global search modal (posts + reports)
-lib/
-  supabase.ts               ← Supabase client (lazy init)
+  ClientLayout.tsx                    ← scroll-to-top (opacity pattern)
+  Navbar.tsx                          ← dark mode toggle, "Trading History" tab
+  Footer.tsx                          ← dark mode aware
+  ThemeContext.tsx                    ← dark mode context + localStorage
+  SearchModal.tsx
+lib/supabase.ts
+app/globals.css                       ← overflow-x fix, dark mode overrides
 ```
 
 ### Admin (apps/admin/src/)
 ```
 app/
-  layout.tsx          ← Root layout + AntdRegistry + AuthProvider
-  login/page.tsx      ← Login page
+  layout.tsx                          ← Root layout + AuthProvider
+  login/page.tsx
+  api/admin/users/route.ts            ← User management API (service_role)
   (admin)/
-    layout.tsx        ← Sidebar + Header layout
-    page.tsx          ← Dashboard
-    categories/page.tsx ← CRUD Categories
-    tags/page.tsx       ← CRUD Tags
+    layout.tsx                        ← Role-based menu
+    page.tsx                          ← Dashboard
+    categories/page.tsx
+    tags/page.tsx
     posts/
-      page.tsx          ← Posts list
-      new/page.tsx      ← Tạo bài mới
-      [id]/edit/page.tsx ← Chỉnh sửa bài
+      page.tsx                        ← preview link dùng NEXT_PUBLIC_CLIENT_URL
+      new/page.tsx
+      [id]/edit/page.tsx
       _components/
-        RichEditor.tsx  ← TipTap rich text editor + nút HTML import/export
-        PostForm.tsx    ← Shared form (create/edit)
-    trading-reports/
-      page.tsx          ← Reports list
-      new/page.tsx      ← Tạo report mới
-      [id]/edit/page.tsx ← Chỉnh sửa report
-      _components/
-        ReportForm.tsx  ← Shared form (create/edit)
-    trades/
-      page.tsx          ← CRUD Trades (modal-based)
+        RichEditor.tsx                ← Image upload + HTML import
+        PostForm.tsx
+    trading-reports/...
+    trades/page.tsx
+    users/page.tsx                    ← Quản lý users (chỉ admin)
 lib/
-  supabase.ts         ← Supabase client
-  auth-context.tsx    ← Auth context provider
+  supabase.ts
+  auth-context.tsx                    ← role + isAdmin
 ```
 
 ### Supabase
 - Project URL: https://ybedctecxhmswgfycnvf.supabase.co
-- Tables: categories, tags, posts, post_tags, trading_reports, trades
-- RLS: Public read (published only) + Admin write (authenticated)
-- Sample data: 4 categories, 6 tags
+- Tables: categories, tags, posts, post_tags, trading_reports, trades, **user_roles**
+- Storage: bucket `post-images` (public) + 3 policies
+- RLS: Public read + Authenticated write + user_roles policies
 
-## Blocker / Vấn đề cần giải quyết
-- Scroll-to-top button không hiển thị (xem mục 🚧 bên trên)
-- TOC không sticky (xem mục 🚧 bên trên)
+---
 
-## Quy ước
+## Quy ước & Gotchas
 - Node.js v20 (via nvm)
-- body cần suppressHydrationWarning (do Grammarly extension)
-- Supabase client đặt trong mỗi app (apps/*/src/lib/supabase.ts), không đặt trong shared
-- Admin dùng route group (admin) để tách layout login vs dashboard
+- `body` cần `suppressHydrationWarning` (do Grammarly extension)
+- Supabase client đặt trong mỗi app (`apps/*/src/lib/supabase.ts`), không đặt trong shared
+- Admin dùng route group `(admin)` để tách layout login vs dashboard
 - Client dùng shared types via `import from 'shared'`
-- Trang Tools dùng native HTML + inline styles (không dùng Ant Design) để tránh conflict styling
-- Style input: dùng `borderWidth/borderStyle/borderColor` riêng biệt, KHÔNG dùng shorthand `border` kết hợp với `borderColor` trong cùng object (React warning)
-- Ant Design `<Divider>` dùng `type="vertical"` KHÔNG dùng `orientation="vertical"`
-- Ant Design `<Layout>` tạo stacking context — cẩn thận với `position: fixed` và `position: sticky` bên trong
+- Trang Tools dùng native HTML + inline styles (không dùng Ant Design)
+- Style input: dùng `borderWidth/borderStyle/borderColor` riêng biệt, KHÔNG dùng shorthand
+- Ant Design `<Divider>` dùng `orientation="vertical"` (type deprecated từ Antd 5.x)
+- TipTap `useEditor`: cần `immediatelyRender: false` để tránh SSR hydration error
+- TipTap `setContent`: dùng `{ emitUpdate: false }` thay vì `false` (TypeScript strict)
+- `position: fixed` phải đặt NGOÀI ancestor có `overflow: hidden` mới hoạt động đúng
+- ScrollToTop dùng `opacity + pointerEvents` thay vì `if/return null` để tránh mất event listener
+- `useFixedPosition` hook tính vị trí fixed từ `articleRef.getBoundingClientRect()` cho cả TOC (left) và right sidebar (right)
+- API route `/api/admin/users` dùng `SUPABASE_SERVICE_ROLE_KEY` — chỉ server-side, không expose ra client

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Layout, Menu, Typography, Button, theme, Dropdown } from 'antd';
+import { Layout, Menu, Typography, Button, theme, Dropdown, Tag } from 'antd';
 import {
   DashboardOutlined,
   AppstoreOutlined,
@@ -14,6 +14,7 @@ import {
   MenuUnfoldOutlined,
   LogoutOutlined,
   UserOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '@/lib/auth-context';
 import RouteProgress from './_components/RouteProgress';
@@ -21,33 +22,47 @@ import RouteProgress from './_components/RouteProgress';
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
 
-const menuItems = [
-  { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
-  { key: '/categories', icon: <AppstoreOutlined />, label: 'Categories' },
-  { key: '/tags', icon: <TagsOutlined />, label: 'Tags' },
-  { key: '/posts', icon: <FileTextOutlined />, label: 'Bài viết' },
-  { key: '/trading-reports', icon: <LineChartOutlined />, label: 'Trading Reports' },
-  { key: '/trades', icon: <SwapOutlined />, label: 'Giao dịch' },
-];
-
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const { token } = theme.useToken();
-  const { user, signOut } = useAuth();
+  const { user, role, isAdmin, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
-  // Chưa đăng nhập → AuthProvider sẽ redirect, không render gì
   if (!user) return null;
+
+  // Menu items theo role
+  // Editor: Dashboard, Categories, Tags, Posts
+  // Admin: tất cả + Users
+  const menuItems = [
+    { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
+    { key: '/categories', icon: <AppstoreOutlined />, label: 'Categories' },
+    { key: '/tags', icon: <TagsOutlined />, label: 'Tags' },
+    { key: '/posts', icon: <FileTextOutlined />, label: 'Bài viết' },
+    // Chỉ admin mới thấy Trading Reports và Trades
+    ...(isAdmin ? [
+      { key: '/trading-reports', icon: <LineChartOutlined />, label: 'Trading Reports' },
+      { key: '/trades', icon: <SwapOutlined />, label: 'Giao dịch' },
+    ] : []),
+    // Chỉ admin mới thấy Users
+    ...(isAdmin ? [
+      { key: '/users', icon: <TeamOutlined />, label: 'Quản lý Users' },
+    ] : []),
+  ];
+
+  const roleLabel = role === 'admin'
+    ? <Tag color="red" style={{ margin: 0 }}>Admin</Tag>
+    : <Tag color="blue" style={{ margin: 0 }}>Biên tập viên</Tag>;
 
   const userMenuItems = [
     {
       key: 'email',
-      label: <Text type="secondary">{user.email}</Text>,
+      label: (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>{user.email}</Text>
+          {roleLabel}
+        </div>
+      ),
       disabled: true,
     },
     { type: 'divider' as const },
@@ -70,15 +85,13 @@ export default function AdminLayout({
         theme="light"
         style={{ borderRight: `1px solid ${token.colorBorderSecondary}` }}
       >
-        <div
-          style={{
-            height: 64,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderBottom: `1px solid ${token.colorBorderSecondary}`,
-          }}
-        >
+        <div style={{
+          height: 64,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+        }}>
           <Title level={4} style={{ margin: 0 }}>
             {collapsed ? '📝' : '📝 Admin'}
           </Title>
@@ -93,16 +106,14 @@ export default function AdminLayout({
       </Sider>
 
       <Layout>
-        <Header
-          style={{
-            padding: '0 24px',
-            background: token.colorBgContainer,
-            borderBottom: `1px solid ${token.colorBorderSecondary}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
+        <Header style={{
+          padding: '0 24px',
+          background: token.colorBgContainer,
+          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
           <Button
             type="text"
             icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
@@ -110,7 +121,7 @@ export default function AdminLayout({
           />
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
             <Button type="text" icon={<UserOutlined />}>
-              Admin
+              {!collapsed && (role === 'admin' ? 'Admin' : 'Biên tập viên')}
             </Button>
           </Dropdown>
         </Header>
