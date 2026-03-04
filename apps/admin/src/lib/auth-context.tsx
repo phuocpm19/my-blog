@@ -48,7 +48,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const u = session?.user ?? null;
       setUser(u);
-      if (u) setRole(await fetchRole(u.id));
+      if (u) {
+        try {
+          setRole(await fetchRole(u.id));
+        } catch {
+          setRole(null);
+        }
+      }
       setLoading(false);
     });
 
@@ -56,7 +62,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async (_event, session) => {
         const u = session?.user ?? null;
         setUser(u);
-        setRole(u ? await fetchRole(u.id) : null);
+        try {
+          setRole(u ? await fetchRole(u.id) : null);
+        } catch {
+          setRole(null);
+        }
         setLoading(false);
       }
     );
