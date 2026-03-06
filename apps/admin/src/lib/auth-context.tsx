@@ -28,13 +28,26 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+// Timeout wrapper — nếu fetchRole không trả về trong 5s thì trả null
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
+
 async function fetchRole(userId: string): Promise<UserRole> {
-  const { data } = await supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', userId)
-    .single();
-  return (data?.role as UserRole) ?? null;
+  try {
+    const { data, error } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .single();
+    if (error) return null;
+    return (data?.role as UserRole) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -45,28 +58,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      const u = session?.user ?? null;
-      setUser(u);
-      if (u) {
-        try {
-          setRole(await fetchRole(u.id));
-        } catch {
-          setRole(null);
-        }
-      }
-      setLoading(false);
-    });
-
+    // Dùng onAuthStateChange duy nhất — nó fire INITIAL_SESSION ngay lập tức
+    // thay thế cả getSession, tránh race condition
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
         const u = session?.user ?? null;
         setUser(u);
-        try {
-          setRole(u ? await fetchRole(u.id) : null);
-        } catch {
+
+        if (u) {
+          // Timeout 5s — nếu Supabase không trả về thì vẫn setLoading(false)
+          const r = await withTimeout(fetchRole(u.id), 5000, null);
+          setRole(r);
+        } else {
           setRole(null);
         }
+
         setLoading(false);
       }
     );
@@ -88,7 +94,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
         <Spin size="large" />
       </div>
     );
