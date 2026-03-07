@@ -47,6 +47,7 @@ export interface TradingReport {
   updated_at: string;
   // Relations
   trades?: Trade[];
+  pair: string | null;
 }
 
 export type TradeSide = 'long' | 'short';

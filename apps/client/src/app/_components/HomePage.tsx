@@ -38,12 +38,11 @@ function getCategoryColor(index: number) {
 }
 
 const sessionColors: Record<string, string> = {
-  SS1: 'blue',
-  SS2: 'cyan',
-  SS3: 'green',
-  SS4: 'orange',
-  SS5: 'volcano',
-  SS6: 'purple',
+  'Session 1': 'blue',
+  'Session 2': 'cyan',
+  'Session 3': 'green',
+  'Session 4': 'orange',
+  'Session 5': 'purple',
 };
 
 interface Stats {
@@ -73,13 +72,13 @@ export default function HomePageClient() {
             .eq('status', 'published')
             .order('published_at', { ascending: false })
             .limit(6),
-          // Recent published reports (limit 4)
+          // Recent reports (limit 6)
           supabase
             .from('trading_reports')
             .select('*')
-            .eq('status', 'published')
             .order('report_date', { ascending: false })
-            .limit(4),
+            .order('created_at', { ascending: false })
+            .limit(6),
           // Counts
           supabase
             .from('posts')
@@ -87,8 +86,7 @@ export default function HomePageClient() {
             .eq('status', 'published'),
           supabase
             .from('trading_reports')
-            .select('*', { count: 'exact', head: true })
-            .eq('status', 'published'),
+            .select('*', { count: 'exact', head: true }),
           supabase
             .from('trades')
             .select('*', { count: 'exact', head: true }),
@@ -259,8 +257,8 @@ export default function HomePageClient() {
 
       {loading ? (
         <Row gutter={[16, 16]}>
-          {[1, 2].map((i) => (
-            <Col xs={24} md={12} key={i}>
+          {[1, 2, 3].map((i) => (
+            <Col xs={24} sm={12} md={8} key={i}>
               <Card>
                 <Skeleton active paragraph={{ rows: 2 }} />
               </Card>
@@ -272,32 +270,37 @@ export default function HomePageClient() {
       ) : (
         <Row gutter={[16, 16]}>
           {reports.map((report) => (
-            <Col xs={24} sm={12} key={report.id}>
+            <Col xs={24} sm={12} md={8} key={report.id}>
               <Link
                 href={`/trading-reports/${report.id}`}
                 style={{ display: 'block', height: '100%' }}
               >
                 <Card hoverable style={{ height: '100%' }}>
-                  <Space style={{ marginBottom: 8 }}>
-                    <Tag color={sessionColors[report.session] || 'default'}>
-                      {report.session}
-                    </Tag>
-                    <Text type="secondary">
+                  <Space style={{ marginBottom: 6 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
                       <CalendarOutlined />{' '}
                       {new Date(report.report_date).toLocaleDateString('vi-VN')}
                     </Text>
+                    {report.pair && (
+                      <Tag
+                        color={report.pair === 'BTC' ? 'gold' : report.pair === 'ETH' ? 'blue' : 'green'}
+                        style={{ margin: 0 }}
+                      >
+                        {report.pair}
+                      </Tag>
+                    )}
+                    {report.session && (
+                      <Tag
+                        color={sessionColors[report.session] || 'default'}
+                        style={{ margin: 0 }}
+                      >
+                        {report.session}
+                      </Tag>
+                    )}
                   </Space>
-                  <Title level={5} style={{ marginTop: 0, marginBottom: 4 }}>
+                  <Title level={5} style={{ marginTop: 0, marginBottom: 0 }}>
                     {report.title}
                   </Title>
-                  <Paragraph
-                    type="secondary"
-                    ellipsis={{ rows: 2 }}
-                    style={{ marginBottom: 0 }}
-                  >
-                    {/* Strip HTML tags for preview */}
-                    {report.content?.replace(/<[^>]*>/g, '').slice(0, 150) || 'Chưa có nội dung...'}
-                  </Paragraph>
                 </Card>
               </Link>
             </Col>
