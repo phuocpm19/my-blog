@@ -142,6 +142,7 @@ export default function TradingReportsClient() {
   const [filterDate, setFilterDate] = useState<dayjs.Dayjs | null>(null);
   const [filterPair, setFilterPair] = useState<string | undefined>(undefined);
   const [filterSession, setFilterSession] = useState<string | undefined>(undefined);
+  const [filterType, setFilterType] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [allLoading, setAllLoading] = useState(true);
 
@@ -171,6 +172,8 @@ export default function TradingReportsClient() {
     if (filterDate) query = query.eq('report_date', filterDate.format('YYYY-MM-DD'));
     if (filterPair) query = query.eq('pair', filterPair);
     if (filterSession) query = query.eq('session', filterSession);
+    if (filterType === 'Session') query = query.not('session', 'is', null);
+    if (filterType === 'Daily Handoff') query = query.is('session', null);
 
     const from = (page - 1) * PAGE_SIZE;
     query = query.range(from, from + PAGE_SIZE - 1);
@@ -179,7 +182,7 @@ export default function TradingReportsClient() {
     if (data) setReports(data);
     setTotal(count ?? 0);
     setLoading(false);
-  }, [page, search, filterDate, filterPair, filterSession]);
+  }, [page, search, filterDate, filterPair, filterSession, filterType]);
 
   useEffect(() => { fetchReports(); }, [fetchReports]);
 
@@ -213,9 +216,9 @@ export default function TradingReportsClient() {
           Báo cáo gần đây
         </Title>
 
-        {/* Hàng 1: 3 ngày — cùng độ rộng với 5 session */}
+        {/* Hàng 1: Hôm nay / Hôm qua / Daily Handoff */}
         <Row gutter={[12, 12]} style={{ marginBottom: 8 }}>
-          {[0, 1, 2].map((offset) => (
+          {[0, 1].map((offset) => (
             <Col key={offset} style={{ flex: '0 0 20%', maxWidth: '20%' }}>
               <RecentCard
                 title={dateLabel(offset)}
@@ -225,6 +228,16 @@ export default function TradingReportsClient() {
               />
             </Col>
           ))}
+          <Col style={{ flex: '0 0 20%', maxWidth: '20%' }}>
+            <RecentCard
+              title="Daily Handoff"
+              titleColor="#531dab"
+              borderColor="#d3adf7"
+              reports={allReports
+                .filter((r) => r.title?.endsWith('Daily Handoff'))
+                .slice(0, 5)}
+            />
+          </Col>
         </Row>
 
         {/* Hàng 2: 5 sessions */}
@@ -266,7 +279,7 @@ export default function TradingReportsClient() {
             onChange={(val) => { setFilterDate(val); setPage(1); }}
           />
         </Col>
-        <Col xs={12} sm={8} md={4}>
+        <Col xs={12} sm={8} md={3}>
           <Select
             style={{ width: '100%' }}
             placeholder="Cặp"
@@ -276,7 +289,7 @@ export default function TradingReportsClient() {
             {PAIR_LIST.map((p) => <Option key={p} value={p}>{p}</Option>)}
           </Select>
         </Col>
-        <Col xs={12} sm={8} md={5}>
+        <Col xs={12} sm={8} md={4}>
           <Select
             style={{ width: '100%' }}
             placeholder="Session"
@@ -284,6 +297,17 @@ export default function TradingReportsClient() {
             onChange={(val) => { setFilterSession(val); setPage(1); }}
           >
             {SESSION_LIST.map((s) => <Option key={s} value={s}>{s}</Option>)}
+          </Select>
+        </Col>
+        <Col xs={12} sm={8} md={4}>
+          <Select
+            style={{ width: '100%' }}
+            placeholder="Loại báo cáo"
+            allowClear
+            onChange={(val) => { setFilterType(val); setPage(1); }}
+          >
+            <Option value="Session">Session</Option>
+            <Option value="Daily Handoff">Daily Handoff</Option>
           </Select>
         </Col>
       </Row>
@@ -299,7 +323,7 @@ export default function TradingReportsClient() {
         </Row>
       ) : reports.length === 0 ? (
         <Empty
-          description={search || filterDate || filterPair || filterSession
+          description={search || filterDate || filterPair || filterSession || filterType
             ? 'Không tìm thấy báo cáo nào'
             : 'Chưa có báo cáo nào'}
           style={{ padding: '48px 0' }}

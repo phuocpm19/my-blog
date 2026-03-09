@@ -141,6 +141,7 @@ export default function TradingReportsPage() {
   const [filterDate, setFilterDate] = useState<dayjs.Dayjs | null>(null);
   const [filterPair, setFilterPair] = useState<string | null>(null);
   const [filterSession, setFilterSession] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<string | null>(null);
   const [viewReport, setViewReport] = useState<TradingReport | null>(null);
   const [viewModalOpen, setViewModalOpen] = useState(false);
 
@@ -168,12 +169,14 @@ export default function TradingReportsPage() {
     if (filterDate) query = query.eq('report_date', filterDate.format('YYYY-MM-DD'));
     if (filterPair) query = query.eq('pair', filterPair);
     if (filterSession) query = query.eq('session', filterSession);
+    if (filterType === 'Session') query = query.not('session', 'is', null);
+    if (filterType === 'Daily Handoff') query = query.is('session', null);
 
     const { data, error } = await query;
     if (error) message.error('Lỗi tải dữ liệu');
     else setReports(data || []);
     setLoading(false);
-  }, [search, filterDate, filterPair, filterSession]);
+  }, [search, filterDate, filterPair, filterSession, filterType]);
 
   useEffect(() => { fetchReports(); }, [fetchReports]);
 
@@ -262,7 +265,11 @@ export default function TradingReportsPage() {
       dataIndex: 'session',
       key: 'session',
       width: 120,
-      render: (val) => val ? <Tag color={SESSION_COLOR[val] || 'default'}>{val}</Tag> : '-',
+      render: (val, record) => val
+        ? <Tag color={SESSION_COLOR[val] || 'default'}>{val}</Tag>
+        : record.title?.endsWith('Daily Handoff')
+          ? <Tag color="geekblue">Daily Handoff</Tag>
+          : '-',
     },
     {
       title: 'Hành động',
@@ -314,7 +321,7 @@ export default function TradingReportsPage() {
           </Title>
 
           <Row gutter={[8, 8]}>
-            {/* Cột 1: Hôm nay / Hôm qua / Hôm kia */}
+            {/* Cột 1: Hôm nay / Hôm qua / Daily Handoff */}
             <Col span={8}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <RecentCard
@@ -332,10 +339,12 @@ export default function TradingReportsPage() {
                   onView={handleView}
                 />
                 <RecentCard
-                  title={dateLabel(2)}
-                  titleColor={DATE_TITLE_COLOR}
-                  borderColor={DATE_BORDER}
-                  reports={reportsByDate(2)}
+                  title="Daily Handoff"
+                  titleColor="#531dab"
+                  borderColor="#d3adf7"
+                  reports={allReports
+                    .filter((r) => r.title?.endsWith('Daily Handoff'))
+                    .slice(0, 5)}
                   onView={handleView}
                 />
               </div>
@@ -393,7 +402,7 @@ export default function TradingReportsPage() {
                   allowClear
                 />
               </Col>
-              <Col span={8}>
+              <Col span={6}>
                 <DatePicker
                   style={{ width: '100%' }}
                   placeholder="Lọc ngày"
@@ -402,7 +411,7 @@ export default function TradingReportsPage() {
                   format="DD/MM/YYYY"
                 />
               </Col>
-              <Col span={7}>
+              <Col span={4}>
                 <Select
                   style={{ width: '100%' }}
                   placeholder="Cặp"
@@ -413,7 +422,7 @@ export default function TradingReportsPage() {
                   {PAIRS.map((p) => <Option key={p} value={p}>{p}</Option>)}
                 </Select>
               </Col>
-              <Col span={7}>
+              <Col span={5}>
                 <Select
                   style={{ width: '100%' }}
                   placeholder="Session"
@@ -424,6 +433,18 @@ export default function TradingReportsPage() {
                   {SESSIONS.map((s) => <Option key={s} value={s}>{s}</Option>)}
                 </Select>
               </Col>
+              <Col span={7}>
+                <Select
+                  style={{ width: '100%' }}
+                  placeholder="Loại báo cáo"
+                  value={filterType}
+                  onChange={(val) => setFilterType(val)}
+                  allowClear
+                >
+                  <Option value="Session">Session</Option>
+                  <Option value="Daily Handoff">Daily Handoff</Option>
+                </Select>
+              </Col>
               <Col span={2}>
                 <Button
                   style={{ width: '100%' }}
@@ -432,6 +453,7 @@ export default function TradingReportsPage() {
                     setFilterDate(null);
                     setFilterPair(null);
                     setFilterSession(null);
+                    setFilterType(null);
                   }}
                 >
                   ✕
@@ -447,7 +469,7 @@ export default function TradingReportsPage() {
             rowKey="id"
             loading={loading}
             size="small"
-            pagination={{ pageSize: 8, showTotal: (total) => `${total} báo cáo`, size: 'small' }}
+            pagination={{ pageSize: 20, showTotal: (total) => `${total} báo cáo`, size: 'small' }}
           />
         </Col>
       </Row>

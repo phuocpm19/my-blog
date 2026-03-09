@@ -32,12 +32,11 @@ import {
 const { Title, Paragraph, Text } = Typography;
 
 const sessionColors: Record<string, string> = {
-  SS1: 'blue',
-  SS2: 'cyan',
-  SS3: 'green',
-  SS4: 'orange',
-  SS5: 'volcano',
-  SS6: 'purple',
+  'Session 1': 'blue',
+  'Session 2': 'cyan',
+  'Session 3': 'green',
+  'Session 4': 'orange',
+  'Session 5': 'purple',
 };
 
 export default function ReportDetailClient() {
@@ -59,7 +58,6 @@ export default function ReportDetailClient() {
         .from('trading_reports')
         .select('*')
         .eq('id', id)
-        .eq('status', 'published')
         .single();
 
       if (error || !reportData) {
@@ -221,15 +219,23 @@ export default function ReportDetailClient() {
         <Divider />
 
         {/* Content */}
-        <div
-          className="post-content"
-          dangerouslySetInnerHTML={{ __html: report.content }}
+        <pre
           style={{
-            fontSize: 16,
-            lineHeight: 1.8,
+            fontFamily: '"Courier New", Courier, monospace',
+            fontSize: 13,
+            lineHeight: 1.7,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
             color: token.colorText,
+            background: token.colorFillAlter,
+            border: `1px solid ${token.colorBorderSecondary}`,
+            borderRadius: token.borderRadius,
+            padding: '16px 20px',
+            margin: 0,
           }}
-        />
+        >
+          {report.content}
+        </pre>
       </article>
 
       {/* Trades Section */}

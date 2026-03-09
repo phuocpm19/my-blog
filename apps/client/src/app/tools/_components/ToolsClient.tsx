@@ -296,6 +296,109 @@ function PriceToVolTab() {
   );
 }
 
+
+// ─── Tab 2: Giá → RR ──────────────────────────────────────────────────────────
+function PriceToRRTab() {
+  const [platform, setPlatform] = useState('Exness');
+  const [pair, setPair] = useState('BTCUSD');
+  const [capital, setCapital] = useState<number | null>(10000);
+  const [position, setPosition] = useState<'buy' | 'sell'>('buy');
+  const [entry, setEntry] = useState<number | null>(null);
+  const [sl, setSl] = useState<number | null>(null);
+  const [tp, setTp] = useState<number | null>(null);
+  const [vol, setVol] = useState<number | null>(null);
+
+  const pxStep = pair === 'XAUUSD' ? 0.001 : 0.01;
+
+  const slError = sl !== null && entry !== null
+    ? (position === 'sell' && sl < entry ? 'SL phải ≥ entry (Sell)'
+      : position === 'buy' && sl > entry ? 'SL phải ≤ entry (Buy)' : null) : null;
+  const tpError = tp !== null && entry !== null
+    ? (position === 'sell' && tp > entry ? 'TP phải ≤ entry (Sell)'
+      : position === 'buy' && tp < entry ? 'TP phải ≥ entry (Buy)' : null) : null;
+
+  const m = MULTIPLIER[pair]?.[platform];
+  let slPips: number | undefined, slDollar: number | undefined, slPct: number | undefined;
+  let tpPips: number | undefined, tpDollar: number | undefined, tpPct: number | undefined;
+  let rr: number | undefined;
+
+  if (!slError && !tpError && m && entry !== null && sl !== null && tp !== null && vol !== null && vol > 0 && capital) {
+    const slP = Math.abs(entry - sl);
+    const tpP = Math.abs(entry - tp);
+    if (slP > 0 && tpP > 0) {
+      slPips = slP; slDollar = vol * slP * m; slPct = slDollar * 100 / capital;
+      tpPips = tpP; tpDollar = vol * tpP * m; tpPct = tpDollar * 100 / capital;
+      rr = tpP / slP;
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={g2}>
+        <Field label="Nền tảng">
+          <select value={platform} onChange={(e) => setPlatform(e.target.value)} style={selectBase}>
+            <option value="Exness">Exness</option>
+            <option value="FTMO">FTMO</option>
+          </select>
+        </Field>
+        <Field label="Cặp giao dịch">
+          <select value={pair} onChange={(e) => { setPair(e.target.value); setEntry(null); setSl(null); setTp(null); }} style={selectBase}>
+            {Object.entries(PAIR_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </Field>
+      </div>
+
+      <Field label="Vị thế"><PosBtns value={position} onChange={setPosition} /></Field>
+
+      <div style={g2}>
+        <Field label="Vốn ($)">
+          <NInput value={capital} onChange={setCapital} step={100} placeholder="10000" />
+        </Field>
+        <Field label="Volume (lot)">
+          <NInput value={vol} onChange={setVol} step={0.01} placeholder="0.1" />
+        </Field>
+      </div>
+
+      <Field label="Entry">
+        <NInput value={entry} onChange={setEntry} step={pxStep} placeholder="Giá vào lệnh" />
+      </Field>
+
+      <div style={g2}>
+        <Field label="Stop Loss" error={slError}>
+          <NInput value={sl} onChange={setSl} step={pxStep} placeholder="Giá SL" error={slError} />
+        </Field>
+        <Field label="Take Profit" error={tpError}>
+          <NInput value={tp} onChange={setTp} step={pxStep} placeholder="Giá TP" error={tpError} />
+        </Field>
+      </div>
+
+      <ResultCard>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Khối lượng</div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontSize: 38, fontWeight: 800, color: vol !== null ? '#4f6ef7' : '#2d3148', fontFamily: "\'SF Mono\',monospace", lineHeight: 1 }}>
+                {vol !== null ? fmtVol(vol) : '—'}
+              </span>
+              <span style={{ color: '#4b5563', fontSize: 14 }}>lot</span>
+            </div>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 10, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>R:R</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: rr !== undefined ? '#4f6ef7' : '#2d3148', fontFamily: "\'SF Mono\',monospace" }}>
+              {rr !== undefined ? `1:${fmt(rr, 2)}` : '—'}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <PnlBox label="Stop Loss" pips={slPips} dollar={slDollar} pct={slPct} type="sl" />
+          <PnlBox label="Take Profit" pips={tpPips} dollar={tpDollar} pct={tpPct} type="tp" />
+        </div>
+      </ResultCard>
+    </div>
+  );
+}
+
 // ─── Tab 2 ────────────────────────────────────────────────────────────────────
 function VolToSlTpTab() {
   const [platform, setPlatform] = useState('Exness');
@@ -391,7 +494,7 @@ function VolToSlTpTab() {
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 export default function ToolsClient() {
-  const [tab, setTab] = useState<'price-to-vol' | 'vol-to-sl'>('price-to-vol');
+  const [tab, setTab] = useState<'price-to-vol' | 'price-to-rr' | 'vol-to-sl'>('price-to-vol');
 
   return (
     <>
@@ -424,14 +527,15 @@ export default function ToolsClient() {
           </div>
 
           {/* Tabs */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, background: '#111827', borderRadius: 12, padding: 4, marginBottom: 4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, background: '#111827', borderRadius: 12, padding: 4, marginBottom: 4 }}>
             {([
               { key: 'price-to-vol', icon: '💰', label: 'Giá → Lot' },
+              { key: 'price-to-rr', icon: '📊', label: 'Giá → RR' },
               { key: 'vol-to-sl', icon: '📍', label: 'Lot → SL/TP' },
             ] as const).map(({ key, icon, label }) => (
               <button key={key} onClick={() => setTab(key)} style={{
                 padding: '11px 0', border: 'none', cursor: 'pointer', borderRadius: 9,
-                fontWeight: 700, fontSize: 13, transition: 'all 0.2s',
+                fontWeight: 700, fontSize: 12, transition: 'all 0.2s',
                 background: tab === key ? 'linear-gradient(135deg,#4f6ef7,#3b55e0)' : 'transparent',
                 color: tab === key ? '#fff' : '#6b7280',
                 boxShadow: tab === key ? '0 2px 12px rgba(79,110,247,0.35)' : 'none',
@@ -443,7 +547,7 @@ export default function ToolsClient() {
 
           {/* Card */}
           <div style={{ background: '#111827', borderRadius: 16, padding: 24, border: '1px solid #1f2937', boxShadow: '0 8px 32px rgba(0,0,0,0.1)' }}>
-            {tab === 'price-to-vol' ? <PriceToVolTab /> : <VolToSlTpTab />}
+            {tab === 'price-to-vol' ? <PriceToVolTab /> : tab === 'price-to-rr' ? <PriceToRRTab /> : <VolToSlTpTab />}
           </div>
 
           <p style={{ textAlign: 'center', marginTop: 20, color: '#9ca3af', fontSize: 11 }}>

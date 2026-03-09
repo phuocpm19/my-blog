@@ -25,6 +25,7 @@ const { TextArea } = Input;
 
 const PAIRS = ['BTC', 'ETH', 'XAU'];
 const SESSIONS = ['Session 1', 'Session 2', 'Session 3', 'Session 4', 'Session 5'];
+const REPORT_TYPES = ['Session', 'Daily Handoff'];
 
 interface ReportFormProps {
   reportId?: string;
@@ -37,16 +38,26 @@ export default function ReportForm({ reportId }: ReportFormProps) {
   const [saving, setSaving] = useState(false);
   const [content, setContent] = useState('');
   const isEditing = !!reportId;
+  const [reportType, setReportType] = useState<'Session' | 'Daily Handoff'>('Session');
 
-  // Tự động tạo tên báo cáo từ ngày + cặp + session
-  const updateTitle = () => {
+  // Tự động tạo tên báo cáo
+  const updateTitle = (type?: 'Session' | 'Daily Handoff') => {
+    const currentType = type ?? reportType;
     const date = form.getFieldValue('report_date');
     const pair = form.getFieldValue('pair');
     const session = form.getFieldValue('session');
-    if (date && pair && session) {
-      form.setFieldValue('title', `${dayjs(date).format('YYYYMMDD')} ${pair} ${session}`);
+    if (currentType === 'Daily Handoff') {
+      if (date && pair) {
+        form.setFieldValue('title', `${dayjs(date).format('YYYYMMDD')} ${pair} Daily Handoff`);
+      } else {
+        form.setFieldValue('title', '');
+      }
     } else {
-      form.setFieldValue('title', '');
+      if (date && pair && session) {
+        form.setFieldValue('title', `${dayjs(date).format('YYYYMMDD')} ${pair} ${session}`);
+      } else {
+        form.setFieldValue('title', '');
+      }
     }
   };
 
@@ -55,6 +66,7 @@ export default function ReportForm({ reportId }: ReportFormProps) {
       form.setFieldsValue({
         report_date: dayjs(),
         pair: 'BTC',
+        report_type: 'Session',
       });
       return;
     }
@@ -73,9 +85,13 @@ export default function ReportForm({ reportId }: ReportFormProps) {
         return;
       }
 
+      const detectedType = data.title?.endsWith('Daily Handoff') ? 'Daily Handoff' : 'Session';
+      // Set state trước để disabled/required render đúng ngay khi form hiện
+      setReportType(detectedType);
       form.setFieldsValue({
         title: data.title,
-        session: data.session || null,
+        report_type: detectedType,
+        session: detectedType === 'Daily Handoff' ? null : (data.session || null),
         pair: data.pair || 'BTC',
         report_date: dayjs(data.report_date),
       });
@@ -93,7 +109,7 @@ export default function ReportForm({ reportId }: ReportFormProps) {
       const reportData = {
         title: values.title,
         content,
-        session: values.session,
+        session: reportType === 'Daily Handoff' ? null : values.session,
         pair: values.pair,
         report_date: values.report_date.format('YYYY-MM-DD'),
         status: 'published',
@@ -159,14 +175,33 @@ export default function ReportForm({ reportId }: ReportFormProps) {
           {/* LEFT — Thông tin báo cáo */}
           <Col xs={24} lg={8}>
             <Card title="Thông tin báo cáo" style={{ position: 'sticky', top: 80 }}>
-              {/* Tên báo cáo: read-only, tự điền */}
-              <Form.Item name="title" label="Tên báo cáo">
-                <Input
-                  placeholder="Tự động điền từ ngày, cặp, session"
-                  readOnly
-                  style={{ background: '#f5f5f5', cursor: 'default' }}
-                />
-              </Form.Item>
+              {/* Hàng 1: Loại báo cáo + Tên báo cáo */}
+              <Row gutter={12}>
+                <Col span={12}>
+                  <Form.Item name="report_type" label="Loại báo cáo">
+                    <Select
+                      onChange={(val: 'Session' | 'Daily Handoff') => {
+                        setReportType(val);
+                        if (val === 'Daily Handoff') {
+                          form.setFieldValue('session', null);
+                        }
+                        updateTitle(val);
+                      }}
+                    >
+                      {REPORT_TYPES.map((t) => <Option key={t} value={t}>{t}</Option>)}
+                    </Select>
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="title" label="Tên báo cáo">
+                    <Input
+                      placeholder="Tự động điền"
+                      readOnly
+                      style={{ background: '#f5f5f5', cursor: 'default' }}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
 
               {/* Ngày phân tích */}
               <Form.Item
@@ -177,7 +212,7 @@ export default function ReportForm({ reportId }: ReportFormProps) {
                 <DatePicker
                   style={{ width: '100%' }}
                   format="DD/MM/YYYY"
-                  onChange={updateTitle}
+                  onChange={() => updateTitle()}
                 />
               </Form.Item>
 
@@ -187,7 +222,7 @@ export default function ReportForm({ reportId }: ReportFormProps) {
                 label="Cặp giao dịch"
                 rules={[{ required: true, message: 'Vui lòng chọn cặp' }]}
               >
-                <Select placeholder="Chọn cặp" onChange={updateTitle}>
+                <Select placeholder="Chọn cặp" onChange={() => updateTitle()}>
                   {PAIRS.map((p) => <Option key={p} value={p}>{p}</Option>)}
                 </Select>
               </Form.Item>
@@ -196,9 +231,13 @@ export default function ReportForm({ reportId }: ReportFormProps) {
               <Form.Item
                 name="session"
                 label="Session"
-                rules={[{ required: true, message: 'Vui lòng chọn session' }]}
+                rules={[{ required: reportType === 'Session', message: 'Vui lòng chọn session' }]}
               >
-                <Select placeholder="Chọn session" onChange={updateTitle}>
+                <Select
+                  placeholder={reportType === 'Daily Handoff' ? 'Không áp dụng' : 'Chọn session'}
+                  onChange={() => updateTitle()}
+                  disabled={reportType === 'Daily Handoff'}
+                >
                   {SESSIONS.map((s) => <Option key={s} value={s}>{s}</Option>)}
                 </Select>
               </Form.Item>

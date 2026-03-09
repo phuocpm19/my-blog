@@ -150,6 +150,30 @@
 
 ---
 
+### Phase 8 — UI Improvements ✅
+
+#### Client — /trading-reports
+- [2026-03-09] ReportsClient: hàng 1 recent panels đổi "05/03" → card "Daily Handoff" (5 item gần nhất, tím)
+- [2026-03-09] ReportsClient: bổ sung bộ lọc "Loại báo cáo" (Session / Daily Handoff)
+- [2026-03-09] ReportDetailClient: đổi render content từ `dangerouslySetInnerHTML` → `<pre whiteSpace:pre-wrap>` (fix vỡ layout plain text)
+- [2026-03-09] ReportDetailClient: fix sessionColors key SS1→Session 1, bỏ filter status=published
+
+#### Client — /tools
+- [2026-03-09] ToolsClient: thêm tab "📊 Giá → RR" ở giữa (3 tab: Giá→Lot / Giá→RR / Lot→SL/TP)
+- [2026-03-09] Tab Giá→RR: input vốn + lot + entry + SL + TP → tính RR, % risk SL/TP, dollar SL/TP
+
+#### Admin — /trading-reports
+- [2026-03-09] ReportForm: thêm field "Loại báo cáo" (Session / Daily Handoff) — chia 50/50 với Tên báo cáo
+- [2026-03-09] ReportForm: Daily Handoff → title format "YYYYMMDD BTC Daily Handoff", disable Session field
+- [2026-03-09] ReportForm: khi edit — tự detect loại từ title (endsWith 'Daily Handoff'), set state đúng
+- [2026-03-09] ReportForm: fix TypeScript lỗi onChange DatePicker/Select — dùng `() => updateTitle()`
+- [2026-03-09] page.tsx: cột Session trong bảng — hiển thị Tag "Daily Handoff" khi session null
+- [2026-03-09] page.tsx: recent panels cột 1 — giữ Hôm nay + Hôm qua, đổi Hôm kia → "Daily Handoff"
+- [2026-03-09] page.tsx: pageSize bảng 8 → 20
+- [2026-03-09] page.tsx: bổ sung bộ lọc "Loại báo cáo" (Session / Daily Handoff)
+
+---
+
 ## Bước tiếp theo
 - [ ] Giscus comments (repo: phuocpm19/my-blog)
 - [ ] Copy code button trong bài viết
