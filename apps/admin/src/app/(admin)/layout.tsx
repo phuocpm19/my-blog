@@ -15,6 +15,7 @@ import {
   LogoutOutlined,
   UserOutlined,
   TeamOutlined,
+  WalletOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '@/lib/auth-context';
 import RouteProgress from './_components/RouteProgress';
@@ -43,6 +44,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     ...(isAdmin ? [
       { key: '/trading-reports', icon: <LineChartOutlined />, label: 'Trading Reports' },
       { key: '/trades', icon: <SwapOutlined />, label: 'Giao dịch' },
+      { key: '/trading-accounts', icon: <WalletOutlined />, label: 'Tài khoản' },
     ] : []),
     // Chỉ admin mới thấy Users
     ...(isAdmin ? [

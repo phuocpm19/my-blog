@@ -4,8 +4,8 @@
 > Gửi file này cho Claude khi bắt đầu chat mới, hoặc paste vào Project Instructions.
 
 ## Trạng thái hiện tại
-**Phase:** 7 — Trading Reports Overhaul ✅ HOÀN THÀNH
-**Trạng thái:** Deploy thành công cả client + admin lên Vercel production
+**Phase:** 8 — UI Improvements ✅ HOÀN THÀNH
+**Trạng thái:** Trades CRUD hoàn chỉnh, bảng 17 cột + 6 bộ lọc, tài khoản giao dịch
 
 ---
 
@@ -172,6 +172,31 @@
 - [2026-03-09] page.tsx: pageSize bảng 8 → 20
 - [2026-03-09] page.tsx: bổ sung bộ lọc "Loại báo cáo" (Session / Daily Handoff)
 
+#### Admin — Tài khoản giao dịch (/admin/trading-accounts) — MỚI
+- [2026-03-09] Tạo bảng `trading_accounts` trên Supabase (id, name, platform, account_name, account_type) + RLS
+- [2026-03-09] Tạo trang `/admin/trading-accounts/page.tsx` — CRUD đầy đủ
+- [2026-03-09] Bộ lọc: tên tài khoản + nền tảng + loại tài khoản
+- [2026-03-09] Popup tạo/sửa: auto-generate tên theo format "Platform AccountType AccountName"
+- [2026-03-09] Nền tảng Exness: Pro - USD / Pro - VND; FTMO: 12 loại (10K/25K/50K/100K/200K × Step1/Step2/Live)
+- [2026-03-09] Thêm menu "Tài khoản" (WalletOutlined) vào admin layout — chỉ admin thấy
+
+#### Admin — /trades
+- [2026-03-09] Thêm cột DB: title, account_name, entry_order, order_status, actual_entry_price, open_time, actual_exit_price, close_time, swap, actual_pnl, trade_code
+- [2026-03-09] Modal form 9 hàng:
+  - H1: Tên GD (read-only auto) | Ngày | Lần vào lệnh
+  - H2: Nền tảng | Tên tài khoản (select từ trading_accounts) | Trạng thái lệnh
+  - H3: Cặp | Vị thế | Khối lượng
+  - H4: Entry | Entry TT | Thời gian mở
+  - H5: Giá đóng | Giá đóng TT | Thời gian đóng
+  - H6: Stop Loss | Take Profit | Mã giao dịch
+  - H7: PnL | Phí GD | Phí qua đêm | PnL TT
+  - H8: Trading Report | Lý do đóng lệnh (Stop Loss / Take Profit / Thủ công)
+  - H9: Lý do vào lệnh (textarea 5 rows) | Bài học rút ra (textarea 5 rows)
+- [2026-03-09] Auto-generate title: "YYYYMMDD CẶP VỊ_THẾ LẦN_VÀO TÊN_TÀI_KHOẢN"
+- [2026-03-09] Bộ lọc 6 field: tên GD + ngày + nền tảng + trạng thái + cặp + vị thế + nút xóa ✕
+- [2026-03-09] Bảng 17 cột: scroll ngang, Ngày+Tên fixed trái, Actions fixed phải
+  - Ngày / Tên GD / Cặp / Vị thế / Trạng thái / Entry / Entry TT / T.g mở / Exit / Exit TT / T.g đóng / SL / TP / PnL / Phí GD / Phí ĐM / PnL TT
+
 ---
 
 ## Bước tiếp theo
@@ -251,7 +276,9 @@ app/
       page.tsx                        ← 2-col layout: recent panels + table
       _components/ReportForm.tsx      ← TextArea editor, auto title, pair/session select
       new/page.tsx / [id]/edit/page.tsx
-    trades/page.tsx / users/page.tsx
+    trading-accounts/page.tsx         ← CRUD tài khoản, auto-gen name
+    trades/page.tsx                   ← 17-col table, 6 bộ lọc, modal 9 hàng
+    users/page.tsx
 lib/
   supabase.ts
   auth-context.tsx
@@ -264,7 +291,7 @@ packages/shared/src/index.ts          ← TradingReport có thêm pair: string |
 
 ### Supabase
 - Project URL: https://ybedctecxhmswgfycnvf.supabase.co
-- Tables: categories, tags, posts, post_tags, trading_reports (+ cột pair), trades, user_roles
+- Tables: categories, tags, posts, post_tags, trading_reports (+ cột pair), trades (+ 11 cột mới), trading_accounts, user_roles
 - Storage: bucket `post-images` (public) + 3 policies
 - RLS trading_reports: "Public read all reports" (`USING (true)`) — không còn filter status
 
@@ -291,3 +318,6 @@ packages/shared/src/index.ts          ← TradingReport có thêm pair: string |
 - Trading Reports KHÔNG dùng RichEditor — dùng `Input.TextArea` (monospace) vì dữ liệu gốc là .txt
 - `trading_reports.status` vẫn tồn tại trong DB nhưng không dùng trong UI — luôn lưu `status: 'published'`
 - Supabase import: dùng `supabase` singleton trực tiếp, KHÔNG dùng `createClient()` factory
+- Trading Reports: loại báo cáo detect từ title — endsWith('Daily Handoff') → type='Daily Handoff', ngược lại → 'Session'
+- Trades form: `account_name` lưu TEXT (tên tài khoản), không lưu UUID — để tiện hiển thị không cần join
+- `trading_accounts.name` = auto-generate từ "Platform AccountType AccountName" ở thời điểm tạo
