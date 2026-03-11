@@ -5,7 +5,7 @@
 
 ## Trạng thái hiện tại
 **Phase:** 8 — UI Improvements ✅ HOÀN THÀNH
-**Trạng thái:** Trades CRUD hoàn chỉnh, bảng 17 cột + 6 bộ lọc, tài khoản giao dịch
+**Trạng thái:** Trades CRUD hoàn chỉnh, bảng 20 cột, xuất báo cáo, auto-calc PnL
 
 ---
 
@@ -182,20 +182,23 @@
 
 #### Admin — /trades
 - [2026-03-09] Thêm cột DB: title, account_name, entry_order, order_status, actual_entry_price, open_time, actual_exit_price, close_time, swap, actual_pnl, trade_code
+- [2026-03-12] Thêm cột DB: result_recorded, result_actual
 - [2026-03-09] Modal form 9 hàng:
-  - H1: Tên GD (read-only auto) | Ngày | Lần vào lệnh
+  - H1: Tên GD (read-only auto) | Ngày (chỉ ngày, không giờ) | Lần vào lệnh (placeholder "1, 2, 3...")
   - H2: Nền tảng | Tên tài khoản (select từ trading_accounts) | Trạng thái lệnh
-  - H3: Cặp | Vị thế | Khối lượng
-  - H4: Entry | Entry TT | Thời gian mở
-  - H5: Giá đóng | Giá đóng TT | Thời gian đóng
-  - H6: Stop Loss | Take Profit | Mã giao dịch
-  - H7: PnL | Phí GD | Phí qua đêm | PnL TT
+  - H3: Mã giao dịch (select BTC/ETH/XAU) | Vị thế | Khối lượng
+  - H4: Giá mở | Thời gian mở | Giá đóng | Thời gian đóng (4 cột bằng nhau, datetime đến giây, hỗ trợ paste)
+  - H5: Stop Loss | Take Profit | Mã lệnh
+  - H6: PnL ghi nhận | Phí giao dịch (cho phép âm) | Phí qua đêm
+  - H7: PnL thực tế (auto = pnl+fee+swap, editable) | Kết quả ghi nhận | Kết quả thực tế
   - H8: Trading Report | Lý do đóng lệnh (Stop Loss / Take Profit / Thủ công)
   - H9: Lý do vào lệnh (textarea 5 rows) | Bài học rút ra (textarea 5 rows)
-- [2026-03-09] Auto-generate title: "YYYYMMDD CẶP VỊ_THẾ LẦN_VÀO TÊN_TÀI_KHOẢN"
-- [2026-03-09] Bộ lọc 6 field: tên GD + ngày + nền tảng + trạng thái + cặp + vị thế + nút xóa ✕
-- [2026-03-09] Bảng 17 cột: scroll ngang, Ngày+Tên fixed trái, Actions fixed phải
-  - Ngày / Tên GD / Cặp / Vị thế / Trạng thái / Entry / Entry TT / T.g mở / Exit / Exit TT / T.g đóng / SL / TP / PnL / Phí GD / Phí ĐM / PnL TT
+- [2026-03-09] Auto-generate title: "YYYYMMDD MÃ_GD VỊ_THẾ LẦN_VÀO TÊN_TÀI_KHOẢN"
+- [2026-03-12] Bộ lọc 7 field: tên GD + ngày + nền tảng + trạng thái + mã GD + vị thế + tên tài khoản + nút xóa ✕
+- [2026-03-12] Card Xuất báo cáo: checkbox Tất cả, format (.csv/.xlsx/.txt), từ/đến ngày, nền tảng, mã GD, tài khoản
+- [2026-03-12] Bảng 20 cột: Ngày/Tên fixed trái, KQ TT/Actions fixed phải
+  - Ngày / Tên GD / Nền tảng / Mã GD / Vị thế / Trạng thái / Lý do đóng / T.g mở / T.g đóng / KL / Giá mở / Giá đóng / SL / TP / PnL GN / Phí GD / Phí ĐM / KQ GN / KQ TT
+  - FTMO: thời gian kèm "(GMT+3)" sau giờ
 
 ---
 
@@ -291,7 +294,7 @@ packages/shared/src/index.ts          ← TradingReport có thêm pair: string |
 
 ### Supabase
 - Project URL: https://ybedctecxhmswgfycnvf.supabase.co
-- Tables: categories, tags, posts, post_tags, trading_reports (+ cột pair), trades (+ 11 cột mới), trading_accounts, user_roles
+- Tables: categories, tags, posts, post_tags, trading_reports (+ cột pair), trades (+ 13 cột mới), trading_accounts, user_roles
 - Storage: bucket `post-images` (public) + 3 policies
 - RLS trading_reports: "Public read all reports" (`USING (true)`) — không còn filter status
 
@@ -321,3 +324,6 @@ packages/shared/src/index.ts          ← TradingReport có thêm pair: string |
 - Trading Reports: loại báo cáo detect từ title — endsWith('Daily Handoff') → type='Daily Handoff', ngược lại → 'Session'
 - Trades form: `account_name` lưu TEXT (tên tài khoản), không lưu UUID — để tiện hiển thị không cần join
 - `trading_accounts.name` = auto-generate từ "Platform AccountType AccountName" ở thời điểm tạo
+- Trades `result_recorded` / `result_actual`: mặc định = `actual_pnl` (= pnl + fee + swap), user có thể sửa trực tiếp
+- Trades DatePicker thời gian: dùng `showTime={{ format: 'HH:mm:ss' }}` + `format="DD/MM/YYYY HH:mm:ss"` để hỗ trợ chọn đến giây và paste trực tiếp
+- Trades export: .csv/.xlsx đều xuất cùng nội dung CSV (BOM UTF-8), .txt xuất plain text dạng summary

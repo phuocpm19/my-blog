@@ -3,10 +3,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
   Typography, Table, Button, Space, Input, Modal, Form,
-  InputNumber, Select, DatePicker, message, Popconfirm, Tag, Row, Col,
+  InputNumber, Select, DatePicker, message, Popconfirm, Tag,
+  Row, Col, Card, Checkbox,
 } from 'antd';
 import type { TableColumnsType } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, FilterOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, DownloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { supabase } from '@/lib/supabase';
 
@@ -36,6 +37,8 @@ interface Trade {
   fee: number;
   swap: number | null;
   actual_pnl: number | null;
+  result_recorded: number | null;
+  result_actual: number | null;
   leverage: number;
   strategy: string | null;
   exit_reason: string | null;
@@ -61,17 +64,74 @@ const STATUS_COLOR: Record<string, string> = {
   'Huỷ': 'red',
 };
 
+const SIDE_COLOR = { long: 'green', short: 'red' } as const;
+
+// ─── Export helpers ───
+function toCSV(data: Trade[], accounts: AccountOption[]) {
+  const headers = ['Ngày','Tên GD','Nền tảng','Mã GD','Vị thế','Trạng thái','Lý do đóng','T.g mở','T.g đóng','KL','Giá mở','Giá đóng','SL','TP','PnL GN','Phí GD','Phí ĐM','KQ GN','KQ TT'];
+  const rows = data.map((t) => [
+    t.trade_date ? dayjs(t.trade_date).format('DD/MM/YYYY') : '',
+    t.title || '',
+    t.platform || '',
+    t.pair || '',
+    t.side === 'long' ? 'Long' : 'Short',
+    t.order_status || '',
+    t.exit_reason || '',
+    formatTime(t.open_time, t.platform),
+    formatTime(t.close_time, t.platform),
+    t.quantity ?? '',
+    t.actual_entry_price ?? t.entry_price ?? '',
+    t.actual_exit_price ?? t.exit_price ?? '',
+    t.sl ?? '',
+    t.tp ?? '',
+    t.pnl ?? '',
+    t.fee ?? '',
+    t.swap ?? '',
+    t.result_recorded ?? '',
+    t.result_actual ?? '',
+  ]);
+  return [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+}
+
+function formatTime(v: string | null, platform: string | null) {
+  if (!v) return '';
+  const fmt = dayjs(v).format('DD/MM/YY HH:mm:ss');
+  return platform === 'FTMO' ? `${fmt} (GMT+3)` : fmt;
+}
+
+function downloadFile(content: string, filename: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
 export default function TradesPage() {
   const [trades, setTrades] = useState<Trade[]>([]);
   const [reports, setReports] = useState<ReportOption[]>([]);
   const [accounts, setAccounts] = useState<AccountOption[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // ─── Filters ───
   const [search, setSearch] = useState('');
-  const [sideFilter, setSideFilter] = useState<string | null>(null);
   const [filterDate, setFilterDate] = useState<dayjs.Dayjs | null>(null);
   const [filterPlatform, setFilterPlatform] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [filterPair, setFilterPair] = useState<string | null>(null);
+  const [filterSide, setFilterSide] = useState<string | null>(null);
+  const [filterAccount, setFilterAccount] = useState<string | null>(null);
+
+  // ─── Export ───
+  const [exportAll, setExportAll] = useState(false);
+  const [exportFormat, setExportFormat] = useState<string>('.csv');
+  const [exportFrom, setExportFrom] = useState<dayjs.Dayjs | null>(null);
+  const [exportTo, setExportTo] = useState<dayjs.Dayjs | null>(null);
+  const [exportPlatform, setExportPlatform] = useState<string | null>(null);
+  const [exportPair, setExportPair] = useState<string | null>(null);
+  const [exportAccount, setExportAccount] = useState<string | null>(null);
+
+  // ─── Modal ───
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Trade | null>(null);
   const [saving, setSaving] = useState(false);
@@ -90,21 +150,17 @@ export default function TradesPage() {
 
   const loadReports = useCallback(async () => {
     const { data } = await supabase
-      .from('trading_reports').select('id, title, report_date')
-      .order('report_date', { ascending: false });
+      .from('trading_reports').select('id, title, report_date').order('report_date', { ascending: false });
     setReports(data || []);
   }, []);
 
   const loadAccounts = useCallback(async () => {
     const { data } = await supabase
-      .from('trading_accounts').select('id, name, platform')
-      .order('name', { ascending: true });
+      .from('trading_accounts').select('id, name, platform').order('name', { ascending: true });
     setAccounts(data || []);
   }, []);
 
-  useEffect(() => {
-    loadTrades(); loadReports(); loadAccounts();
-  }, [loadTrades, loadReports, loadAccounts]);
+  useEffect(() => { loadTrades(); loadReports(); loadAccounts(); }, [loadTrades, loadReports, loadAccounts]);
 
   // ─── Auto-generate title ───
   const updateTitle = () => {
@@ -115,13 +171,22 @@ export default function TradesPage() {
     const accountName = form.getFieldValue('account_name');
     if (date && pair && side) {
       const sideLabel = side === 'long' ? 'Long' : 'Short';
-      const orderPart = entryOrder ? ` ${entryOrder}` : '';
-      const accountPart = accountName ? ` ${accountName}` : '';
-      form.setFieldValue(
-        'title',
-        `${dayjs(date).format('YYYYMMDD')} ${pair} ${sideLabel}${orderPart}${accountPart}`
-      );
+      const parts = [dayjs(date).format('YYYYMMDD'), pair, sideLabel];
+      if (entryOrder) parts.push(entryOrder);
+      if (accountName) parts.push(accountName);
+      form.setFieldValue('title', parts.join(' '));
     }
+  };
+
+  // ─── Auto-calc actual_pnl ───
+  const recalcPnl = () => {
+    const pnl = Number(form.getFieldValue('pnl') || 0);
+    const fee = Number(form.getFieldValue('fee') || 0);
+    const swap = Number(form.getFieldValue('swap') || 0);
+    const actualPnl = Math.round((pnl + fee + swap) * 100) / 100;
+    form.setFieldValue('actual_pnl', actualPnl);
+    form.setFieldValue('result_recorded', actualPnl);
+    form.setFieldValue('result_actual', actualPnl);
   };
 
   // ─── Filter ───
@@ -129,21 +194,47 @@ export default function TradesPage() {
     const matchSearch = !search ||
       (t.title || '').toLowerCase().includes(search.toLowerCase()) ||
       t.pair.toLowerCase().includes(search.toLowerCase());
-    const matchSide = !sideFilter || t.side === sideFilter;
     const matchDate = !filterDate || t.trade_date.startsWith(filterDate.format('YYYY-MM-DD'));
     const matchPlatform = !filterPlatform || t.platform === filterPlatform;
     const matchStatus = !filterStatus || t.order_status === filterStatus;
     const matchPair = !filterPair || t.pair === filterPair;
-    return matchSearch && matchSide && matchDate && matchPlatform && matchStatus && matchPair;
+    const matchSide = !filterSide || t.side === filterSide;
+    const matchAccount = !filterAccount || t.account_name === filterAccount;
+    return matchSearch && matchDate && matchPlatform && matchStatus && matchPair && matchSide && matchAccount;
   });
+
+  // ─── Export ───
+  const handleExport = () => {
+    let data = exportAll ? trades : filtered;
+    if (!exportAll) {
+      if (exportFrom) data = data.filter((t) => dayjs(t.trade_date) >= exportFrom);
+      if (exportTo) data = data.filter((t) => dayjs(t.trade_date) <= exportTo.endOf('day'));
+      if (exportPlatform) data = data.filter((t) => t.platform === exportPlatform);
+      if (exportPair) data = data.filter((t) => t.pair === exportPair);
+      if (exportAccount) data = data.filter((t) => t.account_name === exportAccount);
+    }
+    const dateStr = dayjs().format('YYYYMMDD');
+    if (exportFormat === '.csv' || exportFormat === '.xlsx') {
+      downloadFile('\uFEFF' + toCSV(data, accounts), `trades_${dateStr}${exportFormat}`, 'text/csv;charset=utf-8');
+    } else {
+      const lines = data.map((t) => [
+        `Ngày: ${t.trade_date ? dayjs(t.trade_date).format('DD/MM/YYYY') : ''}`,
+        `Tên: ${t.title || ''}`,
+        `Nền tảng: ${t.platform || ''} | Mã GD: ${t.pair || ''} | Vị thế: ${t.side === 'long' ? 'Long' : 'Short'}`,
+        `Giá mở: ${t.actual_entry_price ?? t.entry_price ?? ''} | Giá đóng: ${t.actual_exit_price ?? t.exit_price ?? ''}`,
+        `PnL: ${t.pnl ?? ''} | Phí: ${t.fee ?? ''} | Swap: ${t.swap ?? ''} | KQ GN: ${t.result_recorded ?? ''}`,
+        '---',
+      ].join('\n'));
+      downloadFile(lines.join('\n\n'), `trades_${dateStr}.txt`, 'text/plain;charset=utf-8');
+    }
+    message.success(`Đã xuất ${data.length} giao dịch`);
+  };
 
   // ─── Open modal ───
   const handleCreate = () => {
     setEditing(null);
     form.resetFields();
-    form.setFieldsValue({
-      trade_date: dayjs(), side: 'long', platform: 'Exness', pair: 'BTC', fee: 0, pnl: 0,
-    });
+    form.setFieldsValue({ trade_date: dayjs(), side: 'long', platform: 'Exness', pair: 'BTC', fee: 0, pnl: 0, swap: 0 });
     setModalOpen(true);
   };
 
@@ -172,7 +263,6 @@ export default function TradesPage() {
     try {
       const values = await form.validateFields();
       setSaving(true);
-
       const tradeData = {
         title: values.title || null,
         platform: values.platform || null,
@@ -181,10 +271,10 @@ export default function TradesPage() {
         side: values.side,
         entry_order: values.entry_order || null,
         order_status: values.order_status || null,
-        entry_price: values.entry_price,
+        entry_price: values.actual_entry_price ?? values.entry_price ?? 0,
         actual_entry_price: values.actual_entry_price ?? null,
         open_time: values.open_time ? values.open_time.toISOString() : null,
-        exit_price: values.exit_price ?? null,
+        exit_price: values.actual_exit_price ?? values.exit_price ?? null,
         actual_exit_price: values.actual_exit_price ?? null,
         close_time: values.close_time ? values.close_time.toISOString() : null,
         sl: values.sl ?? null,
@@ -195,6 +285,8 @@ export default function TradesPage() {
         fee: values.fee ?? 0,
         swap: values.swap ?? null,
         actual_pnl: values.actual_pnl ?? null,
+        result_recorded: values.result_recorded ?? null,
+        result_actual: values.result_actual ?? null,
         leverage: values.leverage ?? 1,
         strategy: values.strategy || null,
         exit_reason: values.exit_reason || null,
@@ -202,7 +294,6 @@ export default function TradesPage() {
         trade_date: values.trade_date.toISOString(),
         report_id: values.report_id || null,
       };
-
       if (editing) {
         const { error } = await supabase.from('trades').update(tradeData).eq('id', editing.id);
         if (error) throw error;
@@ -212,67 +303,58 @@ export default function TradesPage() {
         if (error) throw error;
         message.success('Đã thêm giao dịch mới');
       }
-
-      setModalOpen(false);
-      form.resetFields();
-      loadTrades();
+      setModalOpen(false); form.resetFields(); loadTrades();
     } catch (err: any) {
       if (err?.message) message.error('Lỗi: ' + err.message);
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
-  const numCol = (title: string, key: string, color?: (v: number) => string) => ({
-    title, dataIndex: key, key, width: 100, align: 'right' as const,
+  // ─── Columns ───
+  const numCol = (title: string, key: string, pnlColor = false, width = 90) => ({
+    title, dataIndex: key, key, width, align: 'right' as const,
     render: (v: number | null) => v != null
-      ? <Text style={color ? { color: color(v), fontWeight: 600 } : {}}>{v >= 0 ? (color ? '+' : '') : ''}{v.toLocaleString('en-US')}</Text>
+      ? <Text style={pnlColor ? { color: v >= 0 ? '#52c41a' : '#ff4d4f', fontWeight: 600 } : {}}>{pnlColor && v > 0 ? '+' : ''}{v.toLocaleString('en-US')}</Text>
       : <Text type="secondary">—</Text>,
   });
 
   const dtCol = (title: string, key: string) => ({
-    title, dataIndex: key, key, width: 130,
-    render: (v: string | null) => v ? dayjs(v).format('DD/MM/YY HH:mm') : <Text type="secondary">—</Text>,
+    title, dataIndex: key, key, width: 150,
+    render: (v: string | null, record: Trade) => {
+      if (!v) return <Text type="secondary">—</Text>;
+      const fmt = dayjs(v).format('DD/MM/YY HH:mm:ss');
+      return record.platform === 'FTMO' ? <span>{fmt} <Text type="secondary" style={{ fontSize: 11 }}>(GMT+3)</Text></span> : fmt;
+    },
   });
 
-  // ─── Columns ───
   const columns: TableColumnsType<Trade> = [
-    {
-      title: 'Ngày', dataIndex: 'trade_date', key: 'trade_date', width: 90, fixed: 'left' as const,
-      render: (d: string) => new Date(d).toLocaleDateString('vi-VN'),
-    },
-    {
-      title: 'Tên giao dịch', dataIndex: 'title', key: 'title', width: 200, fixed: 'left' as const,
-      render: (v: string | null, record) => <Text strong>{v || record.pair}</Text>,
-    },
-    {
-      title: 'Cặp', dataIndex: 'pair', key: 'pair', width: 70,
-      render: (v: string) => <Text strong>{v}</Text>,
-    },
-    {
-      title: 'Vị thế', dataIndex: 'side', key: 'side', width: 80, align: 'center' as const,
-      render: (side: string) => <Tag color={side === 'long' ? 'green' : 'red'}>{side === 'long' ? 'LONG' : 'SHORT'}</Tag>,
-    },
-    {
-      title: 'Trạng thái', dataIndex: 'order_status', key: 'order_status', width: 120,
-      render: (v: string | null) => v
-        ? <Tag color={STATUS_COLOR[v] || 'default'}>{v}</Tag>
-        : <Text type="secondary">—</Text>,
-    },
-    numCol('Entry', 'entry_price'),
-    numCol('Entry TT', 'actual_entry_price'),
-    dtCol('T/g mở', 'open_time'),
-    numCol('Exit', 'exit_price'),
-    numCol('Exit TT', 'actual_exit_price'),
-    dtCol('T/g đóng', 'close_time'),
+    { title: 'Ngày', dataIndex: 'trade_date', key: 'trade_date', width: 90, fixed: 'left' as const,
+      render: (d: string) => dayjs(d).format('DD/MM/YYYY') },
+    { title: 'Tên giao dịch', dataIndex: 'title', key: 'title', width: 200, fixed: 'left' as const,
+      render: (v: string | null, r) => <Text strong>{v || r.pair}</Text> },
+    { title: 'Nền tảng', dataIndex: 'platform', key: 'platform', width: 80,
+      render: (v: string | null) => v || <Text type="secondary">—</Text> },
+    { title: 'Mã GD', dataIndex: 'pair', key: 'pair', width: 70,
+      render: (v: string) => <Text strong>{v}</Text> },
+    { title: 'Vị thế', dataIndex: 'side', key: 'side', width: 80, align: 'center' as const,
+      render: (s: string) => <Tag color={SIDE_COLOR[s as keyof typeof SIDE_COLOR]}>{s === 'long' ? 'LONG' : 'SHORT'}</Tag> },
+    { title: 'Trạng thái', dataIndex: 'order_status', key: 'order_status', width: 110,
+      render: (v: string | null) => v ? <Tag color={STATUS_COLOR[v] || 'default'}>{v}</Tag> : <Text type="secondary">—</Text> },
+    { title: 'Lý do đóng', dataIndex: 'exit_reason', key: 'exit_reason', width: 110,
+      render: (v: string | null) => v || <Text type="secondary">—</Text> },
+    dtCol('T.g mở', 'open_time'),
+    dtCol('T.g đóng', 'close_time'),
+    { title: 'KL', dataIndex: 'quantity', key: 'quantity', width: 70, align: 'right' as const,
+      render: (v: number) => v ?? <Text type="secondary">—</Text> },
+    numCol('Giá mở', 'actual_entry_price'),
+    numCol('Giá đóng', 'actual_exit_price'),
     numCol('SL', 'sl'),
     numCol('TP', 'tp'),
-    numCol('PnL', 'pnl', (v) => v >= 0 ? '#52c41a' : '#ff4d4f'),
+    numCol('PnL GN', 'pnl', true),
     numCol('Phí GD', 'fee'),
     numCol('Phí ĐM', 'swap'),
-    numCol('PnL TT', 'actual_pnl', (v) => v >= 0 ? '#52c41a' : '#ff4d4f'),
-    {
-      title: '', key: 'actions', width: 80, fixed: 'right' as const, align: 'center' as const,
+    numCol('KQ GN', 'result_recorded', true),
+    { ...numCol('KQ TT', 'result_actual', true), fixed: 'right' as const },
+    { title: '', key: 'actions', width: 80, fixed: 'right' as const, align: 'center' as const,
       render: (_: any, record: Trade) => (
         <Space>
           <Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)} disabled={actionLoading === record.id} />
@@ -284,8 +366,8 @@ export default function TradesPage() {
     },
   ];
 
-  const totalPnl = filtered.reduce((sum, t) => sum + (t.pnl || 0), 0);
-  const totalFee = filtered.reduce((sum, t) => sum + (t.fee || 0), 0);
+  const totalPnl = filtered.reduce((s, t) => s + (t.pnl || 0), 0);
+  const totalFee = filtered.reduce((s, t) => s + (t.fee || 0), 0);
   const winCount = filtered.filter((t) => t.pnl > 0).length;
   const winRate = filtered.length > 0 ? ((winCount / filtered.length) * 100).toFixed(1) : '0';
 
@@ -305,47 +387,104 @@ export default function TradesPage() {
         <span>Thực nhận: <Text strong style={{ color: totalPnl - totalFee >= 0 ? '#52c41a' : '#ff4d4f' }}>{(totalPnl - totalFee).toLocaleString('en-US')}</Text></span>
       </div>
 
-      {/* Filters */}
-      <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} md={6}>
+      {/* ─── Filters ─── */}
+      <Row gutter={[10, 10]} style={{ marginBottom: 12 }}>
+        <Col xs={24} md={5}>
           <Input placeholder="Tìm tên giao dịch..." prefix={<SearchOutlined />} value={search}
             onChange={(e) => setSearch(e.target.value)} allowClear />
         </Col>
-        <Col xs={12} sm={6} md={3}>
-          <DatePicker style={{ width: '100%' }} placeholder="Ngày" format="DD/MM/YYYY"
-            onChange={(val) => setFilterDate(val)} />
+        <Col xs={12} md={2}>
+          <DatePicker style={{ width: '100%' }} placeholder="Ngày" format="DD/MM/YY"
+            onChange={(v) => setFilterDate(v)} />
         </Col>
-        <Col xs={12} sm={6} md={3}>
-          <Select style={{ width: '100%' }} placeholder="Nền tảng" allowClear onChange={(val) => setFilterPlatform(val)}>
+        <Col xs={12} md={3}>
+          <Select style={{ width: '100%' }} placeholder="Nền tảng" allowClear onChange={(v) => setFilterPlatform(v)}>
             {PLATFORMS.map((p) => <Option key={p} value={p}>{p}</Option>)}
           </Select>
         </Col>
-        <Col xs={12} sm={6} md={4}>
-          <Select style={{ width: '100%' }} placeholder="Trạng thái" allowClear onChange={(val) => setFilterStatus(val)}>
+        <Col xs={12} md={3}>
+          <Select style={{ width: '100%' }} placeholder="Trạng thái" allowClear onChange={(v) => setFilterStatus(v)}>
             {ORDER_STATUSES.map((s) => <Option key={s} value={s}>{s}</Option>)}
           </Select>
         </Col>
-        <Col xs={12} sm={6} md={3}>
-          <Select style={{ width: '100%' }} placeholder="Cặp" allowClear onChange={(val) => setFilterPair(val)}>
+        <Col xs={12} md={2}>
+          <Select style={{ width: '100%' }} placeholder="Mã GD" allowClear onChange={(v) => setFilterPair(v)}>
             {PAIRS.map((p) => <Option key={p} value={p}>{p}</Option>)}
           </Select>
         </Col>
-        <Col xs={12} sm={6} md={3}>
-          <Select style={{ width: '100%' }} placeholder="Vị thế" allowClear onChange={(val) => setSideFilter(val)}>
+        <Col xs={12} md={2}>
+          <Select style={{ width: '100%' }} placeholder="Vị thế" allowClear onChange={(v) => setFilterSide(v)}>
             <Option value="long">Long</Option>
             <Option value="short">Short</Option>
           </Select>
         </Col>
-        <Col xs={12} sm={6} md={2}>
+        <Col xs={12} md={4}>
+          <Select style={{ width: '100%' }} placeholder="Tên tài khoản" allowClear showSearch optionFilterProp="label"
+            onChange={(v) => setFilterAccount(v)}>
+            {accounts.map((a) => <Option key={a.id} value={a.name} label={a.name}>{a.name}</Option>)}
+          </Select>
+        </Col>
+        <Col xs={12} md={3}>
           <Button style={{ width: '100%' }} onClick={() => {
             setSearch(''); setFilterDate(null); setFilterPlatform(null);
-            setFilterStatus(null); setFilterPair(null); setSideFilter(null);
-          }}>✕</Button>
+            setFilterStatus(null); setFilterPair(null); setFilterSide(null); setFilterAccount(null);
+          }}>✕ Xóa lọc</Button>
         </Col>
       </Row>
 
-      <Table columns={columns} dataSource={filtered} rowKey="id" loading={loading} scroll={{ x: 1600 }}
-        pagination={{ pageSize: 15, showTotal: (total) => `Tổng ${total} giao dịch` }}
+      {/* ─── Export ─── */}
+      <Card size="small" style={{ marginBottom: 16 }}
+        title={<span style={{ fontSize: 13 }}><DownloadOutlined /> Xuất báo cáo</span>}
+      >
+        <Row gutter={[10, 8]} align="middle">
+          <Col>
+            <Checkbox checked={exportAll} onChange={(e) => setExportAll(e.target.checked)}>Tất cả</Checkbox>
+          </Col>
+          <Col xs={12} md={3}>
+            <Select style={{ width: '100%' }} value={exportFormat} onChange={setExportFormat}>
+              <Option value=".csv">.csv</Option>
+              <Option value=".xlsx">.xlsx</Option>
+              <Option value=".txt">.txt</Option>
+            </Select>
+          </Col>
+          {!exportAll && (
+            <>
+              <Col xs={12} md={3}>
+                <DatePicker style={{ width: '100%' }} placeholder="Từ ngày" format="DD/MM/YY"
+                  onChange={(v) => setExportFrom(v)} />
+              </Col>
+              <Col xs={12} md={3}>
+                <DatePicker style={{ width: '100%' }} placeholder="Đến ngày" format="DD/MM/YY"
+                  onChange={(v) => setExportTo(v)} />
+              </Col>
+              <Col xs={12} md={3}>
+                <Select style={{ width: '100%' }} placeholder="Nền tảng" allowClear onChange={(v) => setExportPlatform(v)}>
+                  {PLATFORMS.map((p) => <Option key={p} value={p}>{p}</Option>)}
+                </Select>
+              </Col>
+              <Col xs={12} md={2}>
+                <Select style={{ width: '100%' }} placeholder="Mã GD" allowClear onChange={(v) => setExportPair(v)}>
+                  {PAIRS.map((p) => <Option key={p} value={p}>{p}</Option>)}
+                </Select>
+              </Col>
+              <Col xs={12} md={4}>
+                <Select style={{ width: '100%' }} placeholder="Tên tài khoản" allowClear showSearch optionFilterProp="label"
+                  onChange={(v) => setExportAccount(v)}>
+                  {accounts.map((a) => <Option key={a.id} value={a.name} label={a.name}>{a.name}</Option>)}
+                </Select>
+              </Col>
+            </>
+          )}
+          <Col>
+            <Button type="primary" icon={<DownloadOutlined />} onClick={handleExport}>
+              Xuất {exportAll ? `(${trades.length})` : `(${filtered.length})`}
+            </Button>
+          </Col>
+        </Row>
+      </Card>
+
+      <Table columns={columns} dataSource={filtered} rowKey="id" loading={loading} scroll={{ x: 1800 }}
+        pagination={{ pageSize: 20, showTotal: (total) => `Tổng ${total} giao dịch` }}
         locale={{ emptyText: 'Chưa có giao dịch nào' }}
       />
 
@@ -358,26 +497,27 @@ export default function TradesPage() {
         okText={editing ? 'Cập nhật' : 'Thêm'}
         cancelText="Hủy"
         confirmLoading={saving}
-        width={800}
+        width={820}
         forceRender
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
 
-          {/* Hàng 1: Tên giao dịch | Ngày | Lần vào lệnh */}
+          {/* Hàng 1: Tên GD | Ngày | Lần vào lệnh */}
           <Row gutter={16}>
             <Col span={10}>
               <Form.Item name="title" label="Tên giao dịch">
-                <Input placeholder="Tự động điền" readOnly style={{ background: '#f5f5f5', cursor: 'default' }} />
+                <Input readOnly style={{ background: '#f5f5f5', cursor: 'default' }} placeholder="Tự động điền" />
               </Form.Item>
             </Col>
             <Col span={8}>
               <Form.Item name="trade_date" label="Ngày" rules={[{ required: true }]}>
-                <DatePicker style={{ width: '100%' }} showTime format="DD/MM/YYYY HH:mm" onChange={() => updateTitle()} />
+                <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY"
+                  onChange={() => updateTitle()} />
               </Form.Item>
             </Col>
             <Col span={6}>
               <Form.Item name="entry_order" label="Lần vào lệnh">
-                <Input placeholder="VD: L1, L2..." onChange={() => updateTitle()} />
+                <Input placeholder="1, 2, 3..." onChange={() => updateTitle()} />
               </Form.Item>
             </Col>
           </Row>
@@ -393,14 +533,9 @@ export default function TradesPage() {
             </Col>
             <Col span={8}>
               <Form.Item name="account_name" label="Tên tài khoản">
-                <Select
-                  placeholder="Chọn tài khoản"
-                  allowClear showSearch optionFilterProp="label"
-                  onChange={(val) => { form.setFieldValue('account_name', val); updateTitle(); }}
-                >
-                  {accounts.map((a) => (
-                    <Option key={a.id} value={a.name} label={a.name}>{a.name}</Option>
-                  ))}
+                <Select placeholder="Chọn tài khoản" allowClear showSearch optionFilterProp="label"
+                  onChange={(val) => { form.setFieldValue('account_name', val); updateTitle(); }}>
+                  {accounts.map((a) => <Option key={a.id} value={a.name} label={a.name}>{a.name}</Option>)}
                 </Select>
               </Form.Item>
             </Col>
@@ -413,11 +548,11 @@ export default function TradesPage() {
             </Col>
           </Row>
 
-          {/* Hàng 3: Cặp | Vị thế | Khối lượng */}
+          {/* Hàng 3: Mã giao dịch | Vị thế | Khối lượng */}
           <Row gutter={16}>
             <Col span={8}>
-              <Form.Item name="pair" label="Cặp giao dịch" rules={[{ required: true, message: 'Vui lòng chọn cặp' }]}>
-                <Select placeholder="Chọn cặp" onChange={() => updateTitle()}>
+              <Form.Item name="pair" label="Mã giao dịch" rules={[{ required: true, message: 'Vui lòng chọn' }]}>
+                <Select placeholder="BTC / ETH / XAU" onChange={() => updateTitle()}>
                   {PAIRS.map((p) => <Option key={p} value={p}>{p}</Option>)}
                 </Select>
               </Form.Item>
@@ -437,45 +572,41 @@ export default function TradesPage() {
             </Col>
           </Row>
 
-          {/* Hàng 4: Entry | Entry thực tế | Thời gian mở */}
+          {/* Hàng 4: Giá mở | T.g mở | Giá đóng | T.g đóng */}
           <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item name="entry_price" label="Entry" rules={[{ required: true, message: 'Vui lòng nhập' }]}>
-                <InputNumber style={{ width: '100%' }} min={0} step={0.01} />
+            <Col span={6}>
+              <Form.Item name="actual_entry_price" label="Giá mở">
+                <InputNumber style={{ width: '100%' }} step={0.01} placeholder="Giá vào thực tế" />
               </Form.Item>
             </Col>
-            <Col span={8}>
-              <Form.Item name="actual_entry_price" label="Entry thực tế">
-                <InputNumber style={{ width: '100%' }} min={0} step={0.01} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
+            <Col span={6}>
               <Form.Item name="open_time" label="Thời gian mở">
-                <DatePicker style={{ width: '100%' }} showTime format="DD/MM/YYYY HH:mm" />
+                <DatePicker
+                  style={{ width: '100%' }}
+                  showTime={{ format: 'HH:mm:ss' }}
+                  format="DD/MM/YYYY HH:mm:ss"
+                  placeholder="DD/MM/YYYY HH:mm:ss"
+                />
               </Form.Item>
             </Col>
-          </Row>
-
-          {/* Hàng 5: Giá đóng | Giá đóng thực tế | Thời gian đóng */}
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item name="exit_price" label="Giá đóng">
-                <InputNumber style={{ width: '100%' }} min={0} step={0.01} />
+            <Col span={6}>
+              <Form.Item name="actual_exit_price" label="Giá đóng">
+                <InputNumber style={{ width: '100%' }} step={0.01} placeholder="Giá đóng thực tế" />
               </Form.Item>
             </Col>
-            <Col span={8}>
-              <Form.Item name="actual_exit_price" label="Giá đóng thực tế">
-                <InputNumber style={{ width: '100%' }} min={0} step={0.01} />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
+            <Col span={6}>
               <Form.Item name="close_time" label="Thời gian đóng">
-                <DatePicker style={{ width: '100%' }} showTime format="DD/MM/YYYY HH:mm" />
+                <DatePicker
+                  style={{ width: '100%' }}
+                  showTime={{ format: 'HH:mm:ss' }}
+                  format="DD/MM/YYYY HH:mm:ss"
+                  placeholder="DD/MM/YYYY HH:mm:ss"
+                />
               </Form.Item>
             </Col>
           </Row>
 
-          {/* Hàng 6: SL | TP | Mã giao dịch */}
+          {/* Hàng 5: SL | TP | Mã giao dịch */}
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item name="sl" label="Stop Loss">
@@ -488,31 +619,48 @@ export default function TradesPage() {
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="trade_code" label="Mã giao dịch">
+              <Form.Item name="trade_code" label="Mã lệnh">
                 <Input placeholder="VD: TXN-001..." />
               </Form.Item>
             </Col>
           </Row>
 
-          {/* Hàng 7: PnL | Phí GD | Phí qua đêm | PnL thực tế */}
+          {/* Hàng 6: PnL GN | Phí GD | Phí ĐM */}
           <Row gutter={16}>
-            <Col span={6}>
-              <Form.Item name="pnl" label="Profit/Lot (PnL)">
-                <InputNumber style={{ width: '100%' }} step={0.01} />
+            <Col span={8}>
+              <Form.Item name="pnl" label="PnL ghi nhận">
+                <InputNumber style={{ width: '100%' }} step={0.01}
+                  onChange={() => setTimeout(recalcPnl, 0)} />
               </Form.Item>
             </Col>
-            <Col span={6}>
+            <Col span={8}>
               <Form.Item name="fee" label="Phí giao dịch">
-                <InputNumber style={{ width: '100%' }} min={0} step={0.01} />
+                <InputNumber style={{ width: '100%' }} step={0.01}
+                  onChange={() => setTimeout(recalcPnl, 0)} />
               </Form.Item>
             </Col>
-            <Col span={6}>
+            <Col span={8}>
               <Form.Item name="swap" label="Phí qua đêm">
+                <InputNumber style={{ width: '100%' }} step={0.01}
+                  onChange={() => setTimeout(recalcPnl, 0)} />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          {/* Hàng 7: PnL TT | Kết quả GN | Kết quả TT */}
+          <Row gutter={16}>
+            <Col span={8}>
+              <Form.Item name="actual_pnl" label="PnL thực tế (tự tính)">
                 <InputNumber style={{ width: '100%' }} step={0.01} />
               </Form.Item>
             </Col>
-            <Col span={6}>
-              <Form.Item name="actual_pnl" label="PnL thực tế">
+            <Col span={8}>
+              <Form.Item name="result_recorded" label="Kết quả ghi nhận">
+                <InputNumber style={{ width: '100%' }} step={0.01} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="result_actual" label="Kết quả thực tế">
                 <InputNumber style={{ width: '100%' }} step={0.01} />
               </Form.Item>
             </Col>
@@ -523,10 +671,7 @@ export default function TradesPage() {
             <Col span={12}>
               <Form.Item name="report_id" label="Trading Report">
                 <Select placeholder="Liên kết report (không bắt buộc)" allowClear showSearch optionFilterProp="label"
-                  options={reports.map((r) => ({
-                    value: r.id,
-                    label: `${r.title} (${new Date(r.report_date).toLocaleDateString('vi-VN')})`,
-                  }))}
+                  options={reports.map((r) => ({ value: r.id, label: `${r.title} (${dayjs(r.report_date).format('DD/MM/YYYY')})` }))}
                 />
               </Form.Item>
             </Col>
@@ -543,7 +688,7 @@ export default function TradesPage() {
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="strategy" label="Lý do vào lệnh">
-                <Input.TextArea rows={5} placeholder="Lý do vào lệnh, setup, confluence..." />
+                <Input.TextArea rows={5} placeholder="Setup, confluence, lý do vào lệnh..." />
               </Form.Item>
             </Col>
             <Col span={12}>
