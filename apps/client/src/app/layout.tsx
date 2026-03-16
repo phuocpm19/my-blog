@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { AntdRegistry } from '@ant-design/nextjs-registry';
 import ClientLayout from '@/components/ClientLayout';
+import '@ant-design/v5-patch-for-react-19';
 import './globals.css';
 import { Analytics } from '@vercel/analytics/react';
 

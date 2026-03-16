@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { Trade } from 'shared';
 
@@ -18,6 +19,9 @@ import {
   Space,
   Segmented,
   theme,
+  Modal,
+  Input,
+  Button,
 } from 'antd';
 import {
   DollarOutlined,
@@ -44,6 +48,38 @@ const sessionColors: Record<string, string> = {
 type TimeRange = '7d' | '30d' | '90d' | 'all';
 
 export default function DashboardClient() {
+  const router = useRouter();
+  const [unlocked, setUnlocked] = useState(false);
+  const [pinValue, setPinValue] = useState('');
+  const [pinError, setPinError] = useState(false);
+  const autoRedirectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const SECRET_PIN = '369369';
+
+  useEffect(() => {
+    // Auto-redirect if no action within 3s after wrong pin
+    return () => {
+      if (autoRedirectTimer.current) clearTimeout(autoRedirectTimer.current);
+    };
+  }, []);
+
+  const handlePinSubmit = () => {
+    if (pinValue === SECRET_PIN) {
+      setUnlocked(true);
+      setPinError(false);
+    } else {
+      setPinError(true);
+      autoRedirectTimer.current = setTimeout(() => {
+        router.push('/');
+      }, 3000);
+    }
+  };
+
+  const handleGoHome = () => {
+    if (autoRedirectTimer.current) clearTimeout(autoRedirectTimer.current);
+    router.push('/');
+  };
+
   const { token } = theme.useToken();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
@@ -244,6 +280,51 @@ export default function DashboardClient() {
       render: (v: string | null) => v || '—',
     },
   ];
+
+  if (!unlocked) {
+    return (
+      <Modal
+        open={true}
+        title="Trading History"
+        footer={null}
+        closable={false}
+        maskClosable={false}
+        width={400}
+        centered
+      >
+        <div style={{ textAlign: 'center', padding: '8px 0 16px' }}>
+          <p style={{ marginBottom: 16, color: '#595959' }}>
+            Nhập mã xác nhận từ admin để xem toàn bộ dữ liệu
+          </p>
+          <Input.Password
+            placeholder="Nhập mã xác nhận"
+            value={pinValue}
+            onChange={(e) => {
+              setPinValue(e.target.value);
+              setPinError(false);
+              if (autoRedirectTimer.current) clearTimeout(autoRedirectTimer.current);
+            }}
+            onPressEnter={handlePinSubmit}
+            status={pinError ? 'error' : undefined}
+            style={{ marginBottom: 8 }}
+            size="large"
+            maxLength={10}
+          />
+          {pinError && (
+            <p style={{ color: '#ff4d4f', marginTop: 4, marginBottom: 0, fontSize: 13 }}>
+              Sai mã xác nhận. Tự động quay về trang chủ sau 3 giây...
+            </p>
+          )}
+          <div style={{ display: 'flex', gap: 8, marginTop: 20, justifyContent: 'center' }}>
+            <Button onClick={handleGoHome}>Quay về trang chủ</Button>
+            <Button type="primary" onClick={handlePinSubmit} disabled={pinValue.length === 0}>
+              Xác nhận
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <>

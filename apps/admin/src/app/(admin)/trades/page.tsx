@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Typography, Table, Button, Space, Input, Modal, Form,
   InputNumber, Select, DatePicker, message, Popconfirm, Tag,
-  Row, Col, Card, Checkbox,
+  Row, Col,
 } from 'antd';
 import type { TableColumnsType } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, DownloadOutlined } from '@ant-design/icons';
@@ -67,7 +67,7 @@ const STATUS_COLOR: Record<string, string> = {
 const SIDE_COLOR = { long: 'green', short: 'red' } as const;
 
 // ─── Export helpers ───
-function toCSV(data: Trade[], accounts: AccountOption[]) {
+function toCSV(data: Trade[]) {
   const headers = ['Ngày','Tên GD','Nền tảng','Mã GD','Vị thế','Trạng thái','Lý do đóng','T.g mở','T.g đóng','KL','Giá mở','Giá đóng','SL','TP','PnL GN','Phí GD','Phí ĐM','KQ GN','KQ TT'];
   const rows = data.map((t) => [
     t.trade_date ? dayjs(t.trade_date).format('DD/MM/YYYY') : '',
@@ -115,21 +115,17 @@ export default function TradesPage() {
 
   // ─── Filters ───
   const [search, setSearch] = useState('');
-  const [filterDate, setFilterDate] = useState<dayjs.Dayjs | null>(null);
+  const [filterFrom, setFilterFrom] = useState<dayjs.Dayjs | null>(null);
+  const [filterTo, setFilterTo] = useState<dayjs.Dayjs | null>(null);
   const [filterPlatform, setFilterPlatform] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [filterPair, setFilterPair] = useState<string | null>(null);
   const [filterSide, setFilterSide] = useState<string | null>(null);
   const [filterAccount, setFilterAccount] = useState<string | null>(null);
-
-  // ─── Export ───
-  const [exportAll, setExportAll] = useState(false);
   const [exportFormat, setExportFormat] = useState<string>('.csv');
-  const [exportFrom, setExportFrom] = useState<dayjs.Dayjs | null>(null);
-  const [exportTo, setExportTo] = useState<dayjs.Dayjs | null>(null);
-  const [exportPlatform, setExportPlatform] = useState<string | null>(null);
-  const [exportPair, setExportPair] = useState<string | null>(null);
-  const [exportAccount, setExportAccount] = useState<string | null>(null);
+
+  // ─── Row selection ───
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   // ─── Modal ───
   const [modalOpen, setModalOpen] = useState(false);
@@ -184,9 +180,15 @@ export default function TradesPage() {
     const fee = Number(form.getFieldValue('fee') || 0);
     const swap = Number(form.getFieldValue('swap') || 0);
     const actualPnl = Math.round((pnl + fee + swap) * 100) / 100;
+    const prevActual = form.getFieldValue('actual_pnl');
     form.setFieldValue('actual_pnl', actualPnl);
-    form.setFieldValue('result_recorded', actualPnl);
-    form.setFieldValue('result_actual', actualPnl);
+    // Chỉ sync nếu chưa bị sửa tay (vẫn bằng actual_pnl cũ)
+    if (form.getFieldValue('result_recorded') === prevActual || form.getFieldValue('result_recorded') == null) {
+      form.setFieldValue('result_recorded', actualPnl);
+    }
+    if (form.getFieldValue('result_actual') === prevActual || form.getFieldValue('result_actual') == null) {
+      form.setFieldValue('result_actual', actualPnl);
+    }
   };
 
   // ─── Filter ───
@@ -194,7 +196,9 @@ export default function TradesPage() {
     const matchSearch = !search ||
       (t.title || '').toLowerCase().includes(search.toLowerCase()) ||
       t.pair.toLowerCase().includes(search.toLowerCase());
-    const matchDate = !filterDate || t.trade_date.startsWith(filterDate.format('YYYY-MM-DD'));
+    const tradeDay = dayjs(t.trade_date);
+    const matchDate = (!filterFrom || tradeDay >= filterFrom.startOf('day')) &&
+                      (!filterTo || tradeDay <= filterTo.endOf('day'));
     const matchPlatform = !filterPlatform || t.platform === filterPlatform;
     const matchStatus = !filterStatus || t.order_status === filterStatus;
     const matchPair = !filterPair || t.pair === filterPair;
@@ -205,17 +209,13 @@ export default function TradesPage() {
 
   // ─── Export ───
   const handleExport = () => {
-    let data = exportAll ? trades : filtered;
-    if (!exportAll) {
-      if (exportFrom) data = data.filter((t) => dayjs(t.trade_date) >= exportFrom);
-      if (exportTo) data = data.filter((t) => dayjs(t.trade_date) <= exportTo.endOf('day'));
-      if (exportPlatform) data = data.filter((t) => t.platform === exportPlatform);
-      if (exportPair) data = data.filter((t) => t.pair === exportPair);
-      if (exportAccount) data = data.filter((t) => t.account_name === exportAccount);
-    }
+    // Priority: selected rows > filtered
+    const data = selectedRowKeys.length > 0
+      ? trades.filter((t) => selectedRowKeys.includes(t.id))
+      : filtered;
     const dateStr = dayjs().format('YYYYMMDD');
     if (exportFormat === '.csv' || exportFormat === '.xlsx') {
-      downloadFile('\uFEFF' + toCSV(data, accounts), `trades_${dateStr}${exportFormat}`, 'text/csv;charset=utf-8');
+      downloadFile('\uFEFF' + toCSV(data), `trades_${dateStr}${exportFormat}`, 'text/csv;charset=utf-8');
     } else {
       const lines = data.map((t) => [
         `Ngày: ${t.trade_date ? dayjs(t.trade_date).format('DD/MM/YYYY') : ''}`,
@@ -228,6 +228,29 @@ export default function TradesPage() {
       downloadFile(lines.join('\n\n'), `trades_${dateStr}.txt`, 'text/plain;charset=utf-8');
     }
     message.success(`Đã xuất ${data.length} giao dịch`);
+  };
+
+  // ─── Export single trade ───
+  const handleSingleExport = (trade: Trade) => {
+    const dateStr = dayjs(trade.trade_date).format('YYYYMMDD');
+    const filename = `${trade.title || trade.pair}_${dateStr}`;
+    if (exportFormat === '.csv' || exportFormat === '.xlsx') {
+      downloadFile('\uFEFF' + toCSV([trade]), `${filename}${exportFormat}`, 'text/csv;charset=utf-8');
+    } else {
+      const lines = [
+        `Ngày: ${dayjs(trade.trade_date).format('DD/MM/YYYY')}`,
+        `Tên: ${trade.title || ''}`,
+        `Nền tảng: ${trade.platform || ''} | Mã GD: ${trade.pair || ''} | Vị thế: ${trade.side === 'long' ? 'Long' : 'Short'}`,
+        `Giá mở: ${trade.actual_entry_price ?? trade.entry_price ?? ''} | Giá đóng: ${trade.actual_exit_price ?? trade.exit_price ?? ''}`,
+        `T.g mở: ${formatTime(trade.open_time, trade.platform)} | T.g đóng: ${formatTime(trade.close_time, trade.platform)}`,
+        `SL: ${trade.sl ?? ''} | TP: ${trade.tp ?? ''}`,
+        `PnL GN: ${trade.pnl ?? ''} | Phí GD: ${trade.fee ?? ''} | Phí ĐM: ${trade.swap ?? ''}`,
+        `KQ GN: ${trade.result_recorded ?? ''} | KQ TT: ${trade.result_actual ?? ''}`,
+        trade.strategy ? `\nLý do vào: ${trade.strategy}` : '',
+        trade.notes ? `\nBài học: ${trade.notes}` : '',
+      ].filter(Boolean).join('\n');
+      downloadFile(lines, `${filename}.txt`, 'text/plain;charset=utf-8');
+    }
   };
 
   // ─── Open modal ───
@@ -271,10 +294,10 @@ export default function TradesPage() {
         side: values.side,
         entry_order: values.entry_order || null,
         order_status: values.order_status || null,
-        entry_price: values.actual_entry_price ?? values.entry_price ?? 0,
+        entry_price: values.actual_entry_price ?? 0,
         actual_entry_price: values.actual_entry_price ?? null,
         open_time: values.open_time ? values.open_time.toISOString() : null,
-        exit_price: values.actual_exit_price ?? values.exit_price ?? null,
+        exit_price: values.actual_exit_price ?? null,
         actual_exit_price: values.actual_exit_price ?? null,
         close_time: values.close_time ? values.close_time.toISOString() : null,
         sl: values.sl ?? null,
@@ -354,9 +377,11 @@ export default function TradesPage() {
     numCol('Phí ĐM', 'swap'),
     numCol('KQ GN', 'result_recorded', true),
     { ...numCol('KQ TT', 'result_actual', true), fixed: 'right' as const },
-    { title: '', key: 'actions', width: 80, fixed: 'right' as const, align: 'center' as const,
+    { title: '', key: 'actions', width: 100, fixed: 'right' as const, align: 'center' as const,
       render: (_: any, record: Trade) => (
         <Space>
+          <Button type="text" size="small" icon={<DownloadOutlined />} onClick={() => handleSingleExport(record)}
+            title="Tải về giao dịch này" />
           <Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)} disabled={actionLoading === record.id} />
           <Popconfirm title="Xóa giao dịch?" onConfirm={() => handleDelete(record.id)} okText="Xóa" cancelText="Hủy" okButtonProps={{ danger: true }}>
             <Button type="text" size="small" danger icon={<DeleteOutlined />} loading={actionLoading === record.id} />
@@ -366,11 +391,6 @@ export default function TradesPage() {
     },
   ];
 
-  const totalPnl = filtered.reduce((s, t) => s + (t.pnl || 0), 0);
-  const totalFee = filtered.reduce((s, t) => s + (t.fee || 0), 0);
-  const winCount = filtered.filter((t) => t.pnl > 0).length;
-  const winRate = filtered.length > 0 ? ((winCount / filtered.length) * 100).toFixed(1) : '0';
-
   return (
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
@@ -378,112 +398,102 @@ export default function TradesPage() {
         <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>Thêm giao dịch</Button>
       </div>
 
-      {/* Summary */}
-      <div style={{ display: 'flex', gap: 24, marginBottom: 16, padding: '12px 16px', background: '#fafafa', borderRadius: 8, fontSize: 14 }}>
-        <span>Tổng GD: <Text strong>{filtered.length}</Text></span>
-        <span>Win rate: <Text strong style={{ color: '#52c41a' }}>{winRate}%</Text></span>
-        <span>Profit: <Text strong style={{ color: totalPnl >= 0 ? '#52c41a' : '#ff4d4f' }}>{totalPnl >= 0 ? '+' : ''}{totalPnl.toLocaleString('en-US')}</Text></span>
-        <span>Phí: <Text strong>{totalFee.toLocaleString('en-US')}</Text></span>
-        <span>Thực nhận: <Text strong style={{ color: totalPnl - totalFee >= 0 ? '#52c41a' : '#ff4d4f' }}>{(totalPnl - totalFee).toLocaleString('en-US')}</Text></span>
-      </div>
-
       {/* ─── Filters ─── */}
-      <Row gutter={[10, 10]} style={{ marginBottom: 12 }}>
+      <Row gutter={[10, 10]} style={{ marginBottom: 8 }} align="middle">
         <Col xs={24} md={5}>
           <Input placeholder="Tìm tên giao dịch..." prefix={<SearchOutlined />} value={search}
             onChange={(e) => setSearch(e.target.value)} allowClear />
         </Col>
         <Col xs={12} md={2}>
-          <DatePicker style={{ width: '100%' }} placeholder="Ngày" format="DD/MM/YY"
-            onChange={(v) => setFilterDate(v)} />
+          <DatePicker style={{ width: '100%' }} placeholder="Từ ngày" format="DD/MM/YY"
+            value={filterFrom} onChange={(v) => setFilterFrom(v)} />
+        </Col>
+        <Col xs={12} md={2}>
+          <DatePicker style={{ width: '100%' }} placeholder="Đến ngày" format="DD/MM/YY"
+            value={filterTo} onChange={(v) => setFilterTo(v)} />
         </Col>
         <Col xs={12} md={3}>
-          <Select style={{ width: '100%' }} placeholder="Nền tảng" allowClear onChange={(v) => setFilterPlatform(v)}>
+          <Select style={{ width: '100%' }} placeholder="Nền tảng" allowClear
+            value={filterPlatform} onChange={(v) => setFilterPlatform(v ?? null)}>
             {PLATFORMS.map((p) => <Option key={p} value={p}>{p}</Option>)}
           </Select>
         </Col>
-        <Col xs={12} md={3}>
-          <Select style={{ width: '100%' }} placeholder="Trạng thái" allowClear onChange={(v) => setFilterStatus(v)}>
-            {ORDER_STATUSES.map((s) => <Option key={s} value={s}>{s}</Option>)}
+        <Col xs={12} md={4}>
+          <Select style={{ width: '100%' }} placeholder="Tên tài khoản" allowClear showSearch
+            optionFilterProp="label" value={filterAccount} onChange={(v) => setFilterAccount(v ?? null)}>
+            {accounts.map((a) => <Option key={a.id} value={a.name} label={a.name}>{a.name}</Option>)}
           </Select>
         </Col>
         <Col xs={12} md={2}>
-          <Select style={{ width: '100%' }} placeholder="Mã GD" allowClear onChange={(v) => setFilterPair(v)}>
+          <Select style={{ width: '100%' }} placeholder="Mã GD" allowClear
+            value={filterPair} onChange={(v) => setFilterPair(v ?? null)}>
             {PAIRS.map((p) => <Option key={p} value={p}>{p}</Option>)}
           </Select>
         </Col>
         <Col xs={12} md={2}>
-          <Select style={{ width: '100%' }} placeholder="Vị thế" allowClear onChange={(v) => setFilterSide(v)}>
+          <Select style={{ width: '100%' }} placeholder="Vị thế" allowClear
+            value={filterSide} onChange={(v) => setFilterSide(v ?? null)}>
             <Option value="long">Long</Option>
             <Option value="short">Short</Option>
           </Select>
         </Col>
-        <Col xs={12} md={4}>
-          <Select style={{ width: '100%' }} placeholder="Tên tài khoản" allowClear showSearch optionFilterProp="label"
-            onChange={(v) => setFilterAccount(v)}>
-            {accounts.map((a) => <Option key={a.id} value={a.name} label={a.name}>{a.name}</Option>)}
+        <Col xs={12} md={3}>
+          <Select style={{ width: '100%' }} placeholder="Trạng thái" allowClear
+            value={filterStatus} onChange={(v) => setFilterStatus(v ?? null)}>
+            {ORDER_STATUSES.map((s) => <Option key={s} value={s}>{s}</Option>)}
           </Select>
         </Col>
-        <Col xs={12} md={3}>
+        <Col xs={12} md={1}>
           <Button style={{ width: '100%' }} onClick={() => {
-            setSearch(''); setFilterDate(null); setFilterPlatform(null);
-            setFilterStatus(null); setFilterPair(null); setFilterSide(null); setFilterAccount(null);
-          }}>✕ Xóa lọc</Button>
+            setSearch(''); setFilterFrom(null); setFilterTo(null);
+            setFilterPlatform(null); setFilterStatus(null);
+            setFilterPair(null); setFilterSide(null); setFilterAccount(null);
+          }}>✕</Button>
         </Col>
       </Row>
 
-      {/* ─── Export ─── */}
-      <Card size="small" style={{ marginBottom: 16 }}
-        title={<span style={{ fontSize: 13 }}><DownloadOutlined /> Xuất báo cáo</span>}
-      >
-        <Row gutter={[10, 8]} align="middle">
+      {/* ─── Export row ─── */}
+      <Row gutter={[10, 10]} style={{ marginBottom: 16 }} align="middle">
+        <Col xs={12} md={3}>
+          <Select style={{ width: '100%' }} value={exportFormat} onChange={setExportFormat}>
+            <Option value=".csv">.csv</Option>
+            <Option value=".xlsx">.xlsx</Option>
+            <Option value=".txt">.txt</Option>
+          </Select>
+        </Col>
+        <Col xs={12} md={4}>
+          <Button
+            type="primary"
+            icon={<DownloadOutlined />}
+            style={{ width: '100%' }}
+            disabled={selectedRowKeys.length === 0}
+            onClick={handleExport}
+          >
+            {selectedRowKeys.length === filtered.length && filtered.length > 0
+              ? `Xuất tất cả (${selectedRowKeys.length})`
+              : `Xuất (${selectedRowKeys.length})`}
+          </Button>
+        </Col>
+        {selectedRowKeys.length === 0 && (
           <Col>
-            <Checkbox checked={exportAll} onChange={(e) => setExportAll(e.target.checked)}>Tất cả</Checkbox>
+            <Text type="secondary" style={{ fontSize: 12 }}>Chọn giao dịch để xuất</Text>
           </Col>
-          <Col xs={12} md={3}>
-            <Select style={{ width: '100%' }} value={exportFormat} onChange={setExportFormat}>
-              <Option value=".csv">.csv</Option>
-              <Option value=".xlsx">.xlsx</Option>
-              <Option value=".txt">.txt</Option>
-            </Select>
-          </Col>
-          {!exportAll && (
-            <>
-              <Col xs={12} md={3}>
-                <DatePicker style={{ width: '100%' }} placeholder="Từ ngày" format="DD/MM/YY"
-                  onChange={(v) => setExportFrom(v)} />
-              </Col>
-              <Col xs={12} md={3}>
-                <DatePicker style={{ width: '100%' }} placeholder="Đến ngày" format="DD/MM/YY"
-                  onChange={(v) => setExportTo(v)} />
-              </Col>
-              <Col xs={12} md={3}>
-                <Select style={{ width: '100%' }} placeholder="Nền tảng" allowClear onChange={(v) => setExportPlatform(v)}>
-                  {PLATFORMS.map((p) => <Option key={p} value={p}>{p}</Option>)}
-                </Select>
-              </Col>
-              <Col xs={12} md={2}>
-                <Select style={{ width: '100%' }} placeholder="Mã GD" allowClear onChange={(v) => setExportPair(v)}>
-                  {PAIRS.map((p) => <Option key={p} value={p}>{p}</Option>)}
-                </Select>
-              </Col>
-              <Col xs={12} md={4}>
-                <Select style={{ width: '100%' }} placeholder="Tên tài khoản" allowClear showSearch optionFilterProp="label"
-                  onChange={(v) => setExportAccount(v)}>
-                  {accounts.map((a) => <Option key={a.id} value={a.name} label={a.name}>{a.name}</Option>)}
-                </Select>
-              </Col>
-            </>
-          )}
-          <Col>
-            <Button type="primary" icon={<DownloadOutlined />} onClick={handleExport}>
-              Xuất {exportAll ? `(${trades.length})` : `(${filtered.length})`}
-            </Button>
-          </Col>
-        </Row>
-      </Card>
+        )}
+      </Row>
 
-      <Table columns={columns} dataSource={filtered} rowKey="id" loading={loading} scroll={{ x: 1800 }}
+      <Table
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys) => {
+            setSelectedRowKeys(keys);
+          },
+          onSelectAll: (selected, selectedRows) => {
+            setSelectedRowKeys(selected ? selectedRows.map((r) => r.id) : []);
+          },
+          columnWidth: 40,
+          fixed: true,
+        }}
+        columns={columns} dataSource={filtered} rowKey="id" loading={loading} scroll={{ x: 1800 }}
         pagination={{ pageSize: 20, showTotal: (total) => `Tổng ${total} giao dịch` }}
         locale={{ emptyText: 'Chưa có giao dịch nào' }}
       />

@@ -4,8 +4,8 @@
 > Gửi file này cho Claude khi bắt đầu chat mới, hoặc paste vào Project Instructions.
 
 ## Trạng thái hiện tại
-**Phase:** 8 — UI Improvements ✅ HOÀN THÀNH
-**Trạng thái:** Trades CRUD hoàn chỉnh, bảng 20 cột, xuất báo cáo, auto-calc PnL
+**Phase:** 9 — Bug Fixes & Polish ✅ HOÀN THÀNH
+**Trạng thái:** Fix bugs trading-reports + trades, PIN gate dashboard, fix auth role reset
 
 ---
 
@@ -202,6 +202,48 @@
 
 ---
 
+### Phase 9 — Bug Fixes & Polish ✅
+
+#### Admin — /trading-reports (Bug fixes)
+- [2026-03-16] `interface TradingReport` — `session: string` → `string | null` (Daily Handoff có session null)
+- [2026-03-16] `handleExport` — fix crash `Cannot read properties of null (reading 'replace')` khi export Daily Handoff
+  - Dùng `isHandoff` flag, tên file dùng `DailyHandoff` thay vì null session
+- [2026-03-16] Cột Session trong bảng — Daily Handoff (session=null) hiện `<Tag color="geekblue">Daily Handoff</Tag>`
+- [2026-03-16] Cột Actions — hiện nút tải xuống cho tất cả báo cáo kể cả Daily Handoff (bỏ điều kiện ẩn)
+- [2026-03-16] JSX syntax bug — `</div>` → `</Space>` trong columns render (compile error)
+- [2026-03-16] Recent panel cột 1 — "Hôm kia" → card Daily Handoff (lấy 5 report gần nhất có session=null, màu tím)
+- [2026-03-16] `pageSize` bảng: 8 → 20
+- [2026-03-16] `.sort()` — fix TypeScript: `SESSIONS.indexOf(a.session ?? '')` (null safety)
+
+#### Admin — /trades (Bug fixes)
+- [2026-03-16] `recalcPnl` — chỉ sync `result_recorded`/`result_actual` nếu chưa bị user sửa tay (so sánh với `prevActual`)
+- [2026-03-16] `handleSubmit` — bỏ `values.entry_price`/`values.exit_price` (field ảo không tồn tại trong form)
+- [2026-03-16] `toCSV` — bỏ tham số `accounts` không dùng
+- [2026-03-16] `isSelectAll` state — thay bằng computed `selectedRowKeys.length === filtered.length`
+- [2026-03-16] Bộ lọc: gộp filter + export thành 1 hàng (tên GD / từ ngày / đến ngày / nền tảng / tài khoản / mã GD / vị thế / trạng thái / định dạng / ✕ / Xuất)
+- [2026-03-16] Nút Xuất: disabled mặc định, chỉ enable khi chọn ít nhất 1 giao dịch (checkbox)
+- [2026-03-16] Nút Xuất: hiện "Xuất tất cả (N)" khi chọn tất cả, "Xuất (N)" khi chọn một phần
+- [2026-03-16] Bỏ summary bar (Tổng GD / Win rate / Profit / Phí / Thực nhận) — sẽ xử lý ở menu khác
+
+#### Client — /trading-dashboard
+- [2026-03-16] PIN gate: popup xác nhận khi vào trang, mã mặc định `369369`
+  - Nhập đúng → tắt popup, xem trang bình thường
+  - Nhập sai → hiện lỗi 3s rồi tự redirect về trang chủ
+  - Button "Quay về trang chủ" → redirect ngay, hủy timer
+  - Dùng `Input.Password` + Enter để submit
+
+#### Admin — auth-context.tsx
+- [2026-03-16] Fix role reset khi Supabase refresh JWT (~mỗi 1 giờ)
+  - Dùng `currentUserId` để so sánh — chỉ fetch role khi user ID thực sự thay đổi
+  - `TOKEN_REFRESHED` / `USER_UPDATED` → cùng user ID → giữ nguyên role, không fetch lại
+  - Sign out (u=null) → reset role về null như bình thường
+
+#### Dependencies
+- [2026-03-16] Cài `@ant-design/v5-patch-for-react-19` cho cả client và admin (fix antd v5 + React 19 warning)
+  - Import dòng đầu tiên trong `apps/client/src/app/layout.tsx` và `apps/admin/src/app/layout.tsx`
+
+---
+
 ## Bước tiếp theo
 - [ ] Giscus comments (repo: phuocpm19/my-blog)
 - [ ] Copy code button trong bài viết
@@ -280,7 +322,7 @@ app/
       _components/ReportForm.tsx      ← TextArea editor, auto title, pair/session select
       new/page.tsx / [id]/edit/page.tsx
     trading-accounts/page.tsx         ← CRUD tài khoản, auto-gen name
-    trades/page.tsx                   ← 17-col table, 6 bộ lọc, modal 9 hàng
+    trades/page.tsx                   ← 20-col table, 7 bộ lọc unified, modal 9 hàng, checkbox export
     users/page.tsx
 lib/
   supabase.ts
@@ -327,3 +369,6 @@ packages/shared/src/index.ts          ← TradingReport có thêm pair: string |
 - Trades `result_recorded` / `result_actual`: mặc định = `actual_pnl` (= pnl + fee + swap), user có thể sửa trực tiếp
 - Trades DatePicker thời gian: dùng `showTime={{ format: 'HH:mm:ss' }}` + `format="DD/MM/YYYY HH:mm:ss"` để hỗ trợ chọn đến giây và paste trực tiếp
 - Trades export: .csv/.xlsx đều xuất cùng nội dung CSV (BOM UTF-8), .txt xuất plain text dạng summary
+- `auth-context.tsx`: dùng `currentUserId` closure để tránh fetch role lại khi TOKEN_REFRESHED — chỉ fetch khi user ID thực sự thay đổi
+- `trading_reports`: `session` là `string | null` — Daily Handoff luôn có `session = null`, detect bằng `endsWith('Daily Handoff')`
+- antd v5 + React 19: cài `@ant-design/v5-patch-for-react-19` và import đầu root layout để tắt warning

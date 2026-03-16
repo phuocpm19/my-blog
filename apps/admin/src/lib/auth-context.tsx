@@ -58,18 +58,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    // Dùng onAuthStateChange duy nhất — nó fire INITIAL_SESSION ngay lập tức
-    // thay thế cả getSession, tránh race condition
+    // currentUserId dùng để tránh fetch role lại khi chỉ là TOKEN_REFRESHED
+    let currentUserId: string | null = null;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         const u = session?.user ?? null;
         setUser(u);
 
         if (u) {
-          // Timeout 5s — nếu Supabase không trả về thì vẫn setLoading(false)
-          const r = await withTimeout(fetchRole(u.id), 5000, null);
-          setRole(r);
+          // Chỉ fetch role khi user thực sự thay đổi (login mới)
+          // TOKEN_REFRESHED, USER_UPDATED không cần fetch lại
+          if (u.id !== currentUserId) {
+            currentUserId = u.id;
+            const r = await withTimeout(fetchRole(u.id), 5000, null);
+            // Double-check: chỉ set nếu user vẫn là người này
+            if (currentUserId === u.id) {
+              setRole(r);
+            }
+          }
+          // Nếu cùng user → giữ nguyên role hiện tại
         } else {
+          // Thực sự sign out
+          currentUserId = null;
           setRole(null);
         }
 
@@ -77,7 +88,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      currentUserId = null;
+    };
   }, []);
 
   useEffect(() => {
