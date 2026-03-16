@@ -242,6 +242,25 @@
 - [2026-03-16] Cài `@ant-design/v5-patch-for-react-19` cho cả client và admin (fix antd v5 + React 19 warning)
   - Import dòng đầu tiên trong `apps/client/src/app/layout.tsx` và `apps/admin/src/app/layout.tsx`
 
+#### Admin — /statistics (MỚI)
+- [2026-03-17] Trang thống kê `/admin/statistics` — menu "Thống kê" (BarChartOutlined), chỉ admin thấy
+- [2026-03-17] Cài `recharts` cho `apps/admin`
+- [2026-03-17] Bộ lọc: Nền tảng + Tên tài khoản + preset (Năm/Tháng/Tuần hiện tại) + Từ ngày/Đến ngày + ✕
+- [2026-03-17] Biểu đồ lợi nhuận tích lũy (AreaChart):
+  - Dual-color gradient: cyan (>0) / đỏ (<0), split đúng tại y=0 dùng `zeroPercent = maxVal / range`
+  - Đường stroke cũng đổi màu tại điểm cắt trục 0
+  - ReferenceLine tại y=0, hover tooltip hiển thị giá trị
+  - Select "Số tiền / Tỷ lệ %"
+- [2026-03-17] 4 cột thống kê: Lỗ (đỏ) / Lãi (cyan) / Tổng quan / Tài chính
+  - RR = `avgWin / |avgLoss|` (không phải totalWin/totalLoss)
+  - Chuỗi lỗ/lãi dài nhất tính theo streak liên tiếp
+- [2026-03-17] Lịch tháng:
+  - Header: Hôm nay (về tháng hiện tại) + ← → + tên tháng + PnL tháng + số ngày GD
+  - Mỗi ngày có GD hiện card màu xanh/đỏ với PnL và số GD
+  - Hôm nay đánh dấu chấm tròn xanh
+  - Bắt đầu từ T2 (isoWeek)
+  - Lịch phản ứng theo bộ lọc phía trên
+
 ---
 
 ## Bước tiếp theo
@@ -323,6 +342,7 @@ app/
       new/page.tsx / [id]/edit/page.tsx
     trading-accounts/page.tsx         ← CRUD tài khoản, auto-gen name
     trades/page.tsx                   ← 20-col table, 7 bộ lọc unified, modal 9 hàng, checkbox export
+    statistics/page.tsx               ← biểu đồ tích lũy, 4 thống kê, lịch tháng
     users/page.tsx
 lib/
   supabase.ts
@@ -372,3 +392,6 @@ packages/shared/src/index.ts          ← TradingReport có thêm pair: string |
 - `auth-context.tsx`: dùng `currentUserId` closure để tránh fetch role lại khi TOKEN_REFRESHED — chỉ fetch khi user ID thực sự thay đổi
 - `trading_reports`: `session` là `string | null` — Daily Handoff luôn có `session = null`, detect bằng `endsWith('Daily Handoff')`
 - antd v5 + React 19: cài `@ant-design/v5-patch-for-react-19` và import đầu root layout để tắt warning
+- Statistics chart: `zeroPercent = maxVal / (maxVal - minVal)` — tỷ lệ vị trí y=0 trong chart để split gradient màu đúng
+- Statistics RR: dùng `avgWin / |avgLoss|` không phải `totalWin / totalLoss`
+- dayjs isoWeek: cần `import isoWeek from 'dayjs/plugin/isoWeek'` + `dayjs.extend(isoWeek)` để dùng `.startOf('isoWeek')`
